@@ -96,3 +96,5 @@ data/
 
 # log and checkpoints
 log/
+
+models/
