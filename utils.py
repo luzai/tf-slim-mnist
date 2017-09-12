@@ -62,7 +62,6 @@ def get_session():
 
 
 def get_dev(n=1, ok=(0, 1, 2, 3)):
-
     import GPUtil, time
     print('Auto select gpu')
     GPUtil.showUtilization()
@@ -653,25 +652,30 @@ def write_list(file, l):
 def split_train_val():
     os.chdir('data')
     for node in os.listdir('images'):
-        files = glob.glob('images/' + node+'/*')
-        if not osp.exists('images-val/'+node):
-            mv(files[:len(files)//2],'images-val/'+node)
+        files = glob.glob('images/' + node + '/*')
+        if not osp.exists('images-val/' + node):
+            mv(files[:len(files) // 2], 'images-val/' + node)
+
+
 @chdir_to_root
 def verify_split():
-    val=os.listdir('data/images-val')
-    val=np.sort(val)
-    train=os.listdir('data/images')
-    train=np.sort(train)
+    val = os.listdir('data/images-val')
+    val = np.sort(val)
+    train = os.listdir('data/images')
+    train = np.sort(train)
     print 'ok'
+
 
 @chdir_to_root
 def sort_save():
     pass
 
+
 if __name__ == '__main__':
     # tar_imagenet()
     # clean_imagenet()
-    clean_imagenet10k_label()
+    # clean_imagenet10k_label()
     # split_train_val()
     # verify_split()
+
     pass
