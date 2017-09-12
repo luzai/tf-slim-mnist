@@ -15,73 +15,63 @@ flags.DEFINE_integer('batch_size', 256, 'Batch size.')
 # flags.DEFINE_integer('num_batches', 1,
 #                      'Num of batches to train (epochs).')
 flags.DEFINE_string('log_dir',
-                    # './output/cifar100-4',
-                    'dbg',
+                    './output/cifar100-freeze',
+                    # 'dbg',
                     'Directory with the log data.')
 FLAGS = flags.FLAGS
-alpha = 1.
-beta = 0.
-gamma = 0.
-
-
-def get_loss(predictions, labels, classes):
-    one_hot_labels = slim.one_hot_encoding(labels, classes)
-    loss = slim.losses.softmax_cross_entropy(logits=predictions, onehot_labels=one_hot_labels)
-    return loss
-
-
-def get_acc(predictions, labels, name):
-    with tf.name_scope(name):
-        acc = slim.metrics.accuracy(tf.to_int64(tf.argmax(predictions, 1)), labels)
-    return acc
-
-
-def construct_loss(predictions, labels, name):
-    with tf.name_scope(name):
-        loss_100 = get_loss(predictions, labels, 100)
-
-        # predictions_reshape = tf.reshape(tf.nn.softmax(predictions), (-1, 10, 10))
-        # loss_10 = tf.multiply(tf.constant(beta),
-        #                       slim.losses.log_loss(
-        #                           tf.reduce_sum(predictions_reshape, axis=-1), one_hot_labels)
-        #                       )
-        #
-        # for ind in range(10):
-        #     predictions_ = predictions_reshape[ind, :]
-
-        loss_reg = tf.reduce_sum(slim.losses.get_regularization_losses())
-
-        total_loss = loss_100 + loss_reg
-
-        slim.summary.scalar('loss/reg', loss_reg)
-        slim.summary.scalar('loss/ttl', total_loss)
-        slim.summary.scalar('loss/100', loss_100)
-
-    return total_loss, [loss_reg, loss_100]
 
 
 def main(args):
     tf.logging.set_verbosity(tf.logging.DEBUG)
+    # load the dataset
+    dataset = cifar100.get_split('train', FLAGS.data_dir)
 
     # load batch of dataset
     images, labels = load_batch(
-        cifar100.get_split('train', FLAGS.data_dir),
+        dataset,
         FLAGS.batch_size,
         is_training=True)
-    images_val, labels_val = load_batch(cifar100.get_split('test', FLAGS.data_dir), FLAGS.batch_size, is_training=False)
 
-    with tf.variable_scope('', reuse=False):
-        predictions = resnet101(images, classes=100)
+    # run the image through the model
 
-    total_loss, loss_list = construct_loss(predictions, labels, name='train')
-    acc_train = get_acc(predictions, labels, 'val')
+    predictions = resnet101(images, classes=100)
+
+    alpha = 1.
+    beta = 0.
+    gamma = 0.
+
+    # get the cross-entropy loss
+    one_hot_labels = slim.one_hot_encoding(
+        labels,
+        dataset.num_classes)
+
+    loss_100 = slim.losses.softmax_cross_entropy(
+                               predictions,
+                               one_hot_labels)
+
+    # one_hot_labels = slim.one_hot_encoding(labels, 20)
+    #
+    # predictions_reshape = tf.reshape(tf.nn.softmax(predictions), (-1, 10, 10))
+    # loss_10 = tf.multiply(tf.constant(beta),
+    #                       slim.losses.log_loss(
+    #                           tf.reduce_sum(predictions_reshape, axis=-1), one_hot_labels)
+    #                       )
+    #
+    # for ind in range(10):
+    #     predictions_ = predictions_reshape[ind, :]
+
+    total_loss = slim.losses.get_total_loss()
+    tf.summary.scalar('loss/total', total_loss)
+    tf.summary.scalar('loss/loss100', loss_100)
+    # tf.summary.scalar('loss/loss10', loss_10)
+
 
     global_step = slim.get_or_create_global_step()
     learning_rate = tf.train.exponential_decay(1e-1, global_step,
-                                               1000, 0.5, staircase=True)
+                                               1000, 0.1, staircase=True)
     tf.summary.scalar('lr', learning_rate)
     optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
-    print 'all loss ', slim.losses.get_losses()
+
     # create train op
     train_op = slim.learning.create_train_op(
         total_loss,
@@ -93,7 +83,7 @@ def main(args):
         # slim.get_variables('resnet_v2_101/logits'),
     )
 
-    variables_to_restore = slim.get_variables_to_restore(exclude=["resnet_v2_101/logits", ".*Ftrl.*", ".*Momentum.*"])
+    variables_to_restore = slim.get_variables_to_restore(exclude=["resnet_v2_101/logits", ".*Ftrl.*"])
 
     checkpoint_path = './models/resnet_v2_101.ckpt'
     # checkpoint_path = './output/cifar100/model.ckpt-5564631'
@@ -109,24 +99,26 @@ def main(args):
         sess.run([init_assign_op, global_step_init], init_feed_dict)
         sess.run(global_step_init)
 
+    images_val, labels_val = load_batch(cifar100.get_split('test', FLAGS.data_dir), FLAGS.batch_size, is_training=False)
+
     with tf.variable_scope('', reuse=True):
         predictions_val = resnet101(images_val, classes=100)
 
-    acc_val = get_acc(predictions_val, labels_val, 'val')
-    loss_val, loss_val_list = construct_loss(predictions_val, labels_val, 'val')
+    acc_val = slim.metrics.accuracy(tf.to_int64(tf.argmax(predictions_val, 1)), labels_val)
+
+    acc = slim.metrics.accuracy(tf.to_int64(tf.argmax(predictions, 1)), labels)
+
+    tf.summary.scalar('acc/train', acc)
+    tf.summary.scalar('acc/val', acc_val)
 
     def train_step_fn(session, *args, **kwargs):
         from tensorflow.contrib.slim.python.slim.learning import train_step
 
         total_loss, should_stop = train_step(session, *args, **kwargs)
-        print 'diff ', session.run(train_step_fn.loss), total_loss
-        if train_step_fn.step % 10 == 0:
-            acc_ = session.run(train_step_fn.acc_train)
 
-            acc_val_l_ = []
-            for ind in range(10000 / FLAGS.batch_size + 1):
-                acc_val_l_.append(session.run(train_step_fn.acc_val))
-            acc_val_ = np.mean(acc_val_l_)
+        if train_step_fn.step % 10 == 0:
+            # acc_val_, acc_ = 0, 0
+            acc_val_, acc_ = session.run([train_step_fn.acc_val, train_step_fn.acc])
 
             print('Step %s - Loss: %.2f acc_val: %.2f%% acc: %.2f%%' % (
                 str(train_step_fn.step).rjust(6, '0'), total_loss,
@@ -136,14 +128,11 @@ def main(args):
         return [total_loss, should_stop]
 
     train_step_fn.step = 0
-    train_step_fn.loss_val = loss_val
-    train_step_fn.loss_val_list = loss_val_list
     train_step_fn.acc_val = acc_val
-    train_step_fn.acc_train = acc_train
-    train_step_fn.loss = total_loss
-    train_step_fn.loss_list = loss_list
+    train_step_fn.acc = acc
 
     # run training
+
     _sess_config = tf.ConfigProto(allow_soft_placement=True)
     _sess_config.gpu_options.allow_growth = True
     slim.learning.train(
