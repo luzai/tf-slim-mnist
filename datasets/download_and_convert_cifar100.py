@@ -116,7 +116,8 @@ def _add_to_tfrecord(filename, tfrecord_writer, offset=0):
     images = images.reshape((num_images, 3, 32, 32))
     labels = data[b'fine_labels']
     coarse_labels = data[b'coarse_labels']
-
+    from cifar100_recode import remap
+    labels = [remap[l] for l in labels]
     mapping = {}
     mapping_human = {}
 
@@ -152,9 +153,8 @@ def _add_to_tfrecord(filename, tfrecord_writer, offset=0):
         with open(file_path, 'wb') as f:
             cPickle.dump(data, f, cPickle.HIGHEST_PROTOCOL)
 
-    pickle(mapping, '/tmp/cifar100/mapping.pkl')
-    pickle(mapping_human, '/tmp/cifar100/mapping_human.pkl')
-
+    # pickle(mapping, '/tmp/cifar100/mapping.pkl')
+    # pickle(mapping_human, '/tmp/cifar100/mapping_human.pkl')
 
     return offset + num_images
 

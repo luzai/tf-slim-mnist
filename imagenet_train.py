@@ -1,49 +1,46 @@
 import tensorflow as tf
 
-from datasets import cifar100
-from model import resnet101, load_batch
+from datasets import imagenet
+from model import load_batch
+# from model import resnet101_2 as resnet101
+from  model import resnet101
 import utils
 import numpy as np
 import tensorflow.contrib.slim as slim
 
-utils.init_dev(utils.get_dev(ok=[0, 1, 2, 3]))
+utils.init_dev(utils.get_dev(ok=[0,1,2,3]))
 
 flags = tf.app.flags
-flags.DEFINE_string('data_dir', '/tmp/cifar100',
+flags.DEFINE_string('data_dir', '../Perf_Pred/data/imagenet10k',
                     'Directory with the mnist data.')
-flags.DEFINE_integer('batch_size', 256, 'Batch size.')
-# flags.DEFINE_integer('num_batches', 1,
-#                      'Num of batches to train (epochs).')
+flags.DEFINE_integer('batch_size', 32, 'Batch size.')
+
 flags.DEFINE_string('log_dir',
-                    './output/multiloss2',
+                    './output/imagenet101',
                     # 'dbg2',
                     'Directory with the log data.')
 FLAGS = flags.FLAGS
 
 
-# def map_label(input_tensor):
-#     keys = np.array(cifar100.mapp.keys(), dtype=np.int64)
-#     values = np.array(cifar100.mapp.values(), dtype=np.int64)
-#     table = tf.contrib.lookup.HashTable(
-#         tf.contrib.lookup.KeyValueTensorInitializer(keys, values), -1)
-#     out = table.lookup(input_tensor)
-#     return out
-
-
 def main(args):
     tf.logging.set_verbosity(tf.logging.DEBUG)
     # load the dataset
-    dataset = cifar100.get_split('train', FLAGS.data_dir)
+    dataset = imagenet.get_split('train', FLAGS.data_dir)
 
     # load batch of dataset
     images, labels = load_batch(
         dataset,
         FLAGS.batch_size,
+        height=224,
+        width=224,
         is_training=True)
 
     # run the image through the model
 
-    predictions = resnet101(images, classes=100)
+    predictions = resnet101(images, classes=7461)
+
+    # print slim.get_variables()
+
 
     beta = 0.1
     gamma = 0.1
@@ -53,41 +50,22 @@ def main(args):
         labels,
         dataset.num_classes)
 
-    loss_100 = tf.losses.softmax_cross_entropy(
+    # todo hinge loss
+    loss_100 = slim.losses.softmax_cross_entropy(
         logits=predictions,
         onehot_labels=one_hot_labels)
 
-    # labels_coarse = map_label(labels)
-    labels_coarse = tf.to_int64(labels // 5)
-    one_hot_labels_coarse = slim.one_hot_encoding(labels_coarse, 20)
-
-    predictions_reshape = tf.reshape(tf.nn.softmax(predictions), (-1, 20, 5))
-    loss_20 = tf.losses.log_loss(
-        predictions=tf.reduce_sum(predictions_reshape, axis=-1), labels=one_hot_labels_coarse, weights=beta)
-
-    loss_group_l = []
-    for ind in range(20):
-        predictions_ = tf.reshape(predictions, (-1, 20, 5))
-        bs = tf.shape(predictions_, out_type=tf.int64)[0]
-        sel = tf.stack([tf.range(bs, dtype=tf.int64), labels // 5], axis=1)
-        predictions_ = tf.gather_nd(predictions_, sel)
-
-        one_hot_labels_group = slim.one_hot_encoding(tf.mod(labels, 5), 5)
-        loss_group_l.append(
-            tf.losses.log_loss(predictions=predictions_, labels=one_hot_labels_group, loss_collection=None))
-
-    loss_group = gamma * tf.reduce_mean(loss_group_l)
-    slim.losses.add_loss(loss_group)
-
-    print '>> loss', slim.losses.get_losses(), len(slim.losses.get_losses())  # tf.get_collection(tf.GraphKeys.LOSSES)
+    # slim.losses.add_loss(loss_100)
 
     loss_reg = tf.reduce_sum(slim.losses.get_regularization_losses())
+
+    print slim.losses.get_losses()
+    print tf.get_collection(tf.GraphKeys.LOSSES)
+
     total_loss = slim.losses.get_total_loss()
     slim.summary.scalar('loss/total', total_loss)
     slim.summary.scalar('loss/loss100', loss_100)
-    slim.summary.scalar('loss/reg', loss_reg)
-    slim.summary.scalar('loss/loss20', loss_20)
-    # slim.summary.scalar('loss/group', loss_group)
+    slim.summary.scalar('loss/loss_reg', loss_reg)
 
     global_step = slim.get_or_create_global_step()
     learning_rate = tf.train.exponential_decay(1e-1, global_step,
@@ -100,13 +78,13 @@ def main(args):
         total_loss,
         optimizer,
         summarize_gradients=False,
-        variables_to_train=slim.get_variables('resnet_v2_101/block4/.*/weights') + slim.get_variables(
-            'resnet_v2_101/logits/*') + slim.get_variables('resnet_v2_101/block4/.*/beta') + slim.get_variables(
-            'resnet_v2_101/block4/.*/gamma'),
+        variables_to_train=slim.get_trainable_variables('resnet_v2_101/block4/.*') + slim.get_trainable_variables(
+            '.*logits.*'),
         # slim.get_variables('resnet_v2_101/logits'),
     )
 
-    variables_to_restore = slim.get_variables_to_restore(exclude=["resnet_v2_101/logits", ".*Ftrl.*", '.*Momentum.*'])
+    variables_to_restore = slim.get_variables_to_restore(
+        exclude=[".*logits.*", ".*Ftrl.*", '.*Momentum.*', '.*fully_connected.*'])
 
     checkpoint_path = './models/resnet_v2_101.ckpt'
     # checkpoint_path = './output/cifar100/model.ckpt-5564631'
@@ -122,10 +100,11 @@ def main(args):
         sess.run([init_assign_op, global_step_init], init_feed_dict)
         sess.run(global_step_init)
 
-    images_val, labels_val = load_batch(cifar100.get_split('test', FLAGS.data_dir), FLAGS.batch_size, is_training=False)
+    images_val, labels_val = load_batch(imagenet.get_split('validation', FLAGS.data_dir), height=224,
+                                        width=224, batch_size=FLAGS.batch_size, is_training=False)
 
     with tf.variable_scope('', reuse=True):
-        predictions_val = resnet101(images_val, classes=100)
+        predictions_val = resnet101(images_val, classes=7461)
 
     acc_val = slim.metrics.accuracy(tf.to_int64(tf.argmax(predictions_val, 1)), labels_val)
 
@@ -139,15 +118,16 @@ def main(args):
 
         total_loss, should_stop = train_step(session, *args, **kwargs)
 
-        if train_step_fn.step % 196 == 0:
+        if train_step_fn.step % 20 == 0:
             acc_ = session.run(train_step_fn.acc)
-            acc_vall_ = []
-            for ind in range(10000 // FLAGS.batch_size + 1):
-                acc_vall_.append(session.run(train_step_fn.acc_val))
+            # acc_vall_ = []
+            # for ind in range(10000 // FLAGS.batch_size + 1):
+            #     acc_vall_.append(session.run(train_step_fn.acc_val))
 
-            print('>> Step %s - Loss: %.2f acc_val: %.2f%% acc: %.2f%%' % (
+            print('>> Step %s - Loss: %.2f  acc: %.2f%%' % (
                 str(train_step_fn.step).rjust(6, '0'), total_loss,
-                np.mean(acc_vall_) * 100, acc_ * 100))
+                # np.mean(acc_vall_) * 100,
+                acc_ * 100))
 
         train_step_fn.step += 1
         return [total_loss, should_stop]
@@ -164,10 +144,11 @@ def main(args):
         train_op,
         FLAGS.log_dir,
         init_fn=InitAssignFn,
-        save_summaries_secs=50,
+        save_interval_secs=600,
+        save_summaries_secs=600,
         session_config=_sess_config,
-        number_of_steps=8000,
-        log_every_n_steps=196,
+        number_of_steps=None,
+        log_every_n_steps=20,
         train_step_fn=train_step_fn,
         # trace_every_n_steps=20,
     )

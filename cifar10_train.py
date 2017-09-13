@@ -109,12 +109,13 @@ def main(args):
         train_op,
         FLAGS.log_dir,
         init_fn=InitAssignFn,
-        save_summaries_secs=60,
+        save_summaries_secs=600,
+        save_interval_secs=600,
         session_config=_sess_config,
-        number_of_steps=5562631 + 2000,
+        number_of_steps=None,
         log_every_n_steps=20,
         train_step_fn=train_step_fn,
-        # trace_every_n_steps=20,
+        trace_every_n_steps=None,
     )
 
 
