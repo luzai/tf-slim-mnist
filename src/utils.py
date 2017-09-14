@@ -264,9 +264,8 @@ def read_df(path):
 
 
 def mkdir_p(path, delete=False):
-    assert path != ''
-    from logs import logger
-    logger.debug('mkdir -p  ' + path)
+    if path=='': return
+    print('mkdir -p  ' + path)
     if delete:
         rm(path)
     if not osp.exists(path):
@@ -609,6 +608,12 @@ def write_list(file, l):
             f.flush()
 
 
+def rsync(from_, to):
+    cmd = ('rsync -avzP ' + from_ + ' ' + to)
+    print cmd
+    return shell(cmd, block=False)
+
+
 @chdir_to_root
 def clean_imagenet():
     from metadata import imagenet10k
@@ -627,7 +632,7 @@ def tar_imagenet():
     files = glob.glob('*.tar')
 
     for file in files:
-        mkdir_p(file.strip('.tar'))
+        mkdir_p(file.strip('.tar'),delete=True)
         tar(file, file.strip('.tar'))
         rm(file)
 
@@ -660,23 +665,7 @@ def verify_split():
     print 'ok'
 
 
-@chdir_to_root
-def sort_save():
-    pass
-
-
-def rsync(from_, to):
-    cmd = ('rsync -avzP ' + from_ + ' ' + to)
-    print cmd
-    return shell(cmd, block=False)
-
-
-if __name__ == '__main__':
-    # tar_imagenet()
-    # clean_imagenet()
-    # clean_imagenet10k_label()
-    # split_train_val()
-    # verify_split()
+def tranfer():
     images = 'images'
     os.chdir('/DATA/luzai/imagenet-python')
     task_l = []
@@ -685,4 +674,12 @@ if __name__ == '__main__':
         if len(task_l) >= 10:
             [task.communicate() for task in task_l]
             task_l = []
-    pass
+
+
+if __name__ == '__main__':
+    tar_imagenet()
+    # clean_imagenet()
+    # clean_imagenet10k_label()
+    # split_train_val()
+    # verify_split()
+

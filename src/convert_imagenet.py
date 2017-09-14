@@ -7,21 +7,22 @@ import os
 import random
 import sys
 import threading
-
-# import google3
 import numpy as np
 import tensorflow as tf
+import utils
 
-tf.app.flags.DEFINE_string('train_directory', '../data/images/',
+utils.init_dev(0)
+
+tf.app.flags.DEFINE_string('train_directory', '../data/imagenet22k-raw',
                            'Training data directory')
-tf.app.flags.DEFINE_string('validation_directory', '../data/images-val',
+tf.app.flags.DEFINE_string('validation_directory', '../data/imagenet22k-raw',
                            'Validation data directory')
-tf.app.flags.DEFINE_string('output_directory', '../data/imagenet10k/',
+tf.app.flags.DEFINE_string('output_directory', '../data/imagenet10k',
                            'Output data directory')
 
-tf.app.flags.DEFINE_integer('train_shards', 1024,
+tf.app.flags.DEFINE_integer('train_shards', 8*16, # 1024
                             'Number of shards in training TFRecord files.')
-tf.app.flags.DEFINE_integer('validation_shards', 128,
+tf.app.flags.DEFINE_integer('validation_shards', 8, # 128
                             'Number of shards in validation TFRecord files.')
 
 tf.app.flags.DEFINE_integer('num_threads', 8,
@@ -161,11 +162,9 @@ class ImageCoder(object):
                               feed_dict={self._cmyk_data: image_data})
 
     def decode_jpeg(self, image_data):
-        # try:
+
         image = self._sess.run(self._decode_jpeg,
                                feed_dict={self._decode_jpeg_data: image_data})
-        # except Exception as inst:
-        #     print(inst)
 
         assert len(image.shape) == 3
         assert image.shape[2] == 3
@@ -173,10 +172,8 @@ class ImageCoder(object):
 
 
 def append_file(line):
-
     with open('append.txt', 'a') as  f:
-        f.writelines(line)
-
+        f.writelines(line+'\n')
 
 
 def _is_png(filename):
@@ -258,8 +255,6 @@ def _process_image(filename, coder):
     assert image.shape[2] == 3
 
     return image_data, height, width
-
-
 
 
 def _process_image_files_batch(coder, thread_index, ranges, name, filenames,
@@ -421,7 +416,7 @@ def _find_image_files(data_dir, labels_file):
     print('Determining list of input files and labels from %s.' % data_dir)
     challenge_synsets = [l.strip() for l in
                          tf.gfile.FastGFile(labels_file, 'r').readlines()]
-
+    challenge_synsets = ['n11635830', 'n12406902']
     labels = []
     filenames = []
     synsets = []
@@ -477,8 +472,7 @@ def _find_human_readable_labels(synsets, synset_to_human):
     return humans
 
 
-def _process_dataset(name, directory, num_shards, synset_to_human,
-                     ):
+def _process_dataset(name, directory, num_shards, synset_to_human, ):
     """Process a complete data set and save it as a TFRecord.
 
     Args:
@@ -542,8 +536,8 @@ def main(unused_argv):
     # Run it!
     _process_dataset('train', FLAGS.train_directory, FLAGS.train_shards,
                      synset_to_human)
-    # _process_dataset('validation', FLAGS.validation_directory,
-    #                  FLAGS.validation_shards, synset_to_human)
+    _process_dataset('validation', FLAGS.validation_directory,
+                     FLAGS.validation_shards, synset_to_human)
 
 
 if __name__ == '__main__':

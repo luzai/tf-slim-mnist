@@ -13,7 +13,7 @@ def resnet101(images, classes=10):
 
         logits = logits[:, 0, 0, :]
 
-    return logits
+    return logits,end_points
 
 
 import tensorflow.contrib.layers as layers_lib
@@ -40,7 +40,11 @@ def resnet101_2(images, classes):
 
 
 def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
-    data_provider = slim.dataset_data_provider.DatasetDataProvider(dataset)
+    data_provider = slim.dataset_data_provider.DatasetDataProvider(
+        dataset,
+        num_readers=32,
+        common_queue_capacity=20 * batch_size,
+        common_queue_min=10 * batch_size)
 
     image, label = data_provider.get(['image', 'label'])
 
@@ -53,6 +57,9 @@ def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
     images, labels = tf.train.batch(
         [image, label],
         batch_size=batch_size,
-        allow_smaller_final_batch=True)
-
-    return images, labels
+        allow_smaller_final_batch=True,
+        num_threads=8,
+        capacity=5 * batch_size,
+    )
+    batch_queue = slim.prefetch_queue.prefetch_queue([images, labels], capacity=2 * 8)
+    return batch_queue

@@ -90,8 +90,8 @@ def unpickle(file_path):
     return data
 
 
-mapping = unpickle('/tmp/cifar100/mapping.pkl')
-mapping_human = unpickle('/tmp/cifar100/mapping_human.pkl')
+mapping = unpickle('../data/cifar100/mapping.pkl')
+mapping_human = unpickle('../data/cifar100/mapping_human.pkl')
 
 mapp = {
     "0": 4,

@@ -1,31 +1,16 @@
-import numpy as np
-from utils import *
-import subprocess
-import sys
-import os
 from xml.etree import ElementTree
-import requests
 from utils import *
-
-restore_path = os.getcwd()
-
-os.chdir(root_path)
-os.chdir('./src')
 
 
 @chdir_to_root
 def _read(file, delimiter=None):
-    os.chdir(root_path)
     os.chdir('./data')
     mapping_ = np.genfromtxt(file, delimiter=delimiter, dtype='str')
-
     mapping = {}
 
     for two in mapping_:
         mapping[two[0]] = two[1]
     os.chdir(root_path)
-    os.chdir('./src')
-
     return mapping
 
 
@@ -172,6 +157,7 @@ def slim_tree(tree_):
 
     return new_tree
 
+
 @chdir_to_root
 def vis_tree(tree_):
     all_nodes = ['fall11', ]
@@ -199,15 +185,15 @@ def dir2tree():
     # tree_
     return tree_
 
+
 # construct_path()
 
 ori_tree = tag_tree(tree)
+
+
 # slim_tree = slim_tree(ori_tree)
 # slim_tree = tag_tree(slim_tree)
 
 @chdir_to_root
 def clean():
     pass
-
-os.chdir(restore_path)
-

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 print 'Run download'
 
 import subprocess
@@ -97,5 +96,8 @@ if __name__ == "__main__":
             "release": "latest",
             "src": "stanford"
         }
-        download_file(config.synset_url, imagepath, params)
+        try:
+            download_file(config.synset_url, imagepath, params)
+        except Exception as inst:
+            print inst
     print ttl_category
