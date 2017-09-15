@@ -13,7 +13,7 @@ def resnet101(images, classes=10):
 
         logits = logits[:, 0, 0, :]
 
-    return logits,end_points
+    return logits, end_points
 
 
 import tensorflow.contrib.layers as layers_lib
@@ -57,7 +57,7 @@ def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
     images, labels = tf.train.batch(
         [image, label],
         batch_size=batch_size,
-        allow_smaller_final_batch=True,
+        # allow_smaller_final_batch=True,
         num_threads=8,
         capacity=5 * batch_size,
     )

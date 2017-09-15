@@ -7,8 +7,6 @@ from  model import resnet101
 import utils, numpy as np
 import tensorflow.contrib.slim as slim
 
-utils.init_dev(utils.get_dev(ok=[0, 1, 2, 3]))
-
 flags = tf.app.flags
 flags.DEFINE_string('data_dir', '../data/imagenet10k-hhd',
                     'Directory with data.')
@@ -19,7 +17,7 @@ flags.DEFINE_bool('dbg', True,
 flags.DEFINE_string('log_dir',
                     '../output/imagenet101',
                     'Directory with the log data.')
-flags.DEFINE_integer('num_clones', 4,
+flags.DEFINE_integer('num_clones', 2,
                      'num_clones')
 flags.DEFINE_string('checkpoint_path', '../models/resnet_v2_101.ckpt',
                     'checkpoint path')
@@ -68,9 +66,9 @@ def get_init_fn():
     slim.assign_from_checkpoint_fn(
         FLAGS.checkpoint_path,
         slim.get_variables_to_restore(
-            exclude=[".*logits.*", ".*Ftrl.*", '.*Momentum.*', '.*fully_connected.*', '*global_step*']),
+            exclude=[".*logits.*", ".*Ftrl.*", '.*Momentum.*', '.*fully_connected.*', '.*global_step.*']),
         ignore_missing_vars=False
-    )
+        )
 
 
 def train_step_fn(session, *args, **kwargs):
@@ -175,4 +173,5 @@ def main(args):
 
 if __name__ == '__main__':
     utils.rm(FLAGS.log_dir)
+    utils.init_dev(utils.get_dev(n=FLAGS.num_clones))
     tf.app.run()

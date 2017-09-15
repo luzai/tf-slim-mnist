@@ -1,10 +1,10 @@
+# from __future__ import absolute_import
+
 import os, csv, time, cPickle, \
     random, os.path as osp, \
     subprocess, json, matplotlib, \
     numpy as np, pandas as pd, \
-    glob, re
-
-import networkx as nx
+    glob, re, networkx as nx
 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -16,21 +16,25 @@ root_path = osp.normpath(
 )
 
 
-def cpu_priority():
+def cpu_priority(level=19):
     import psutil
     p = psutil.Process(os.getpid())
-    p.nice(19)
+    p.nice(level)
 
 
 def to_int(x):
     return np.around(x).astype(int)
 
 
-def init_dev(n=0):
-    import os
+def init_dev(n=(0,)):
     from os.path import expanduser
     home = expanduser("~")
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(n)
+    if isinstance(n,int):
+        n=(n,)
+    devs = ''
+    for n_ in n:
+        devs += str(n_) + ','
+    os.environ["CUDA_VISIBLE_DEVICES"] = devs
     os.environ['PATH'] = home + '/cuda-8.0/bin:' + os.environ['PATH']
     os.environ['PATH'] = home + 'anaconda2/bin:' + os.environ['PATH']
     os.environ['PATH'] = home + '/usr/local/cuda-8.0/bin:' + os.environ['PATH']
@@ -60,7 +64,7 @@ def get_session():
     return sess
 
 
-def get_dev(n=1, ok=(0, 1, 2, 3)):
+def get_dev(n=1, ok=(0, 1, 2, 3, 4, 5, 6, 7)):
     import GPUtil, time
     print('Auto select gpu')
     GPUtil.showUtilization()
@@ -217,12 +221,11 @@ timer = Timer()
 @optional_arg_decorator
 def timeit(fn, info=''):
     def wrapped_fn(*arg, **kwargs):
-        from logs import logger
         timer = Timer()
         timer.tic()
         res = fn(*arg, **kwargs)
         diff = timer.toc()
-        logger.debug((info + 'takes time {}').format(diff))
+        print((info + 'takes time {}').format(diff))
         return res
 
     return wrapped_fn
@@ -264,7 +267,7 @@ def read_df(path):
 
 
 def mkdir_p(path, delete=False):
-    if path=='': return
+    if path == '': return
     print('mkdir -p  ' + path)
     if delete:
         rm(path)
@@ -322,10 +325,7 @@ def rmdir(path):
 
 def rm(path, block=True):
     cmd = 'rm -rf ' + path
-    if block:
-        shell(cmd)
-    else:
-        shell(cmd, block=block)
+    return shell(cmd, block=block)
 
 
 def show_img(path):
@@ -348,7 +348,6 @@ def i_vis_model(model):
 
 def vis_model(model, name='model', show_shapes=True):
     import keras
-    from logs import logger
     from keras.utils import vis_utils
     path = osp.dirname(name)
     name = osp.basename(name)
@@ -361,7 +360,7 @@ def vis_model(model, name='model', show_shapes=True):
         # vis_utils.plot_model(model, to_file=osp.join(sav_path, name + '.pdf'), show_shapes=show_shapes)
         vis_utils.plot_model(model, to_file=osp.join(sav_path, name + '.png'), show_shapes=show_shapes)
     except Exception as inst:
-        logger.error("cannot keras.plot_model {}".format(inst))
+        print("cannot keras.plot_model {}".format(inst))
 
 
 def print_graph_info():
@@ -444,7 +443,6 @@ def scp(src, dest, dry_run=False):
 
 @chdir_to_root
 def vis_nx(graph, name='default', show=False):
-    from logs import logger
     import networkx as nx
     path = osp.dirname(name)
     name = osp.basename(name)
@@ -519,21 +517,6 @@ def merge_dir(dir_l):
             else:
                 print parent
 
-
-@chdir_to_root
-def parse_dir_name(dir='_res'):
-    dir_l = glob.glob(dir + '/*/*')
-    res = []
-    for path in dir_l:
-        name = path.split('/')[1]
-        name_l = name.split('_')
-        name_l[-1] = '{:.2e}'.format(float(name_l[-1]))
-        res.append(name_l)
-        _name = '_'.join(name_l)
-        # move( '/'.join(path.split('/')[:2]), '/'.join(path.split('/')[:1]+ [_name]))
-    return res
-
-
 def clean_name(name):
     import re
     name = re.findall('([a-zA-Z0-9/-]+)(?::\d+)?', name)[0]
@@ -579,7 +562,6 @@ def check_md5sum():
 
 def merge_pdf(names):
     from pyPdf import PdfFileWriter, PdfFileReader
-    from logs import logger
 
     # Creating a routine that appends files to the output file
     def append_pdf(input, output):
@@ -591,7 +573,7 @@ def merge_pdf(names):
     # Appending two pdf-pages from two different files
     for name in names:
         if not osp.exists(name):
-            logger.warning(name + 'do not exist')
+            print(name + 'do not exist')
         append_pdf(PdfFileReader(open(name, "rb")), output)
 
     # Writing all the collected pages to a f  ile
@@ -615,71 +597,42 @@ def rsync(from_, to):
 
 
 @chdir_to_root
-def clean_imagenet():
-    from metadata import imagenet10k
-    assert len(imagenet10k) > 10000, 'classes more thn 10k'
-    os.chdir('data')
-    for node in os.listdir('images'):
-        if '.tar' in node: continue
-        if node not in imagenet10k:
-            # cp('images/' + node, 'images-xr')
-            rm('images/' + node, block=True)
-
-
-@chdir_to_root
 def tar_imagenet():
-    os.chdir('data/images')
+    os.chdir('data/imagenet22k-raw')
     files = glob.glob('*.tar')
-
+    task_l = []
     for file in files:
-        mkdir_p(file.strip('.tar'),delete=True)
+        mkdir_p(file.strip('.tar'), delete=True)
         tar(file, file.strip('.tar'))
-        rm(file)
-
+        task_l.append(rm(file, block=True))
+    [task.communicate() for task in task_l]
 
 @chdir_to_root
-def clean_imagenet10k_label():
-    from metadata import imagenet10k
-    all = [node for node in os.listdir('./data/images/') if node in imagenet10k]
+def gen_imagenet22k_label():
+    all = [node for node in os.listdir('./data/images/') if '.tar' not in node]
     os.chdir('data')
-    write_list('imagenet10k.txt', all)
-    write_list('imagenet10k.bak.txt', imagenet10k)
+    write_list('imagenet22k.txt', all)
     return np.sort(all)
 
 
-@chdir_to_root
-def split_train_val():
-    os.chdir('data')
-    for node in os.listdir('images'):
-        files = glob.glob('images/' + node + '/*')
-        if not osp.exists('images-val/' + node):
-            mv(files[:len(files) // 2], 'images-val/' + node)
-
-
-@chdir_to_root
-def verify_split():
-    val = os.listdir('data/images-val')
-    val = np.sort(val)
-    train = os.listdir('data/images')
-    train = np.sort(train)
-    print 'ok'
-
-
-def tranfer():
+def transfer():
     images = 'images'
     os.chdir('/DATA/luzai/imagenet-python')
     task_l = []
     for file in shuffle_iter(os.listdir(images)):
-        task_l.append(rsync(images + '/' + file, 'mm:/mnt/nfs1703/kchen/imagenet10k-raw/'))
-        if len(task_l) >= 10:
+        # task_l.append(rsync(images + '/' + file, 'mm:/mnt/nfs1703/kchen/imagenet10k-raw/'))
+        if file not in os.listdir('./tmp/'):
+            task_l.append(rsync(images + '/' + file, './tmp/'))
+        else:
+            rm(images + '/' + file, block=False)
+        if len(task_l) >= 20:
             [task.communicate() for task in task_l]
             task_l = []
 
 
-if __name__ == '__main__':
-    tar_imagenet()
-    # clean_imagenet()
-    # clean_imagenet10k_label()
-    # split_train_val()
-    # verify_split()
 
+if __name__ == '__main__':
+    # tar_imagenet()
+    # gen_imagenet22k_label()
+
+    pass

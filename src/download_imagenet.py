@@ -68,9 +68,13 @@ def travel_tree():
             yield child
 
 
+import multiprocessing as mp
+
 if __name__ == "__main__":
     print 'run download'
+    pools = mp.Pool(processes=128)
     ttl_category = 0
+    task_l = []
     for node in shuffle_iter(nx.dfs_preorder_nodes(ori_tree, 'fall11')):
         # for node in nx.dfs_preorder_nodes(tree, 'fall11'):
         if len(ori_tree.successors(node)) > 0:
@@ -97,7 +101,14 @@ if __name__ == "__main__":
             "src": "stanford"
         }
         try:
-            download_file(config.synset_url, imagepath, params)
+            task_l.append(pools.apply_async(download_file, (config.synset_url, imagepath, params)))
+            # download_file(config.synset_url, imagepath, params)
         except Exception as inst:
             print inst
+    for task in task_l:
+        try:
+            task.get()
+        except Exception as inst:
+            print inst
+
     print ttl_category

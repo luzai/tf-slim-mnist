@@ -20,9 +20,9 @@ tf.app.flags.DEFINE_string('validation_directory', '../data/imagenet22k-raw',
 tf.app.flags.DEFINE_string('output_directory', '../data/imagenet10k',
                            'Output data directory')
 
-tf.app.flags.DEFINE_integer('train_shards', 8*16, # 1024
+tf.app.flags.DEFINE_integer('train_shards', 1024,
                             'Number of shards in training TFRecord files.')
-tf.app.flags.DEFINE_integer('validation_shards', 8, # 128
+tf.app.flags.DEFINE_integer('validation_shards', 128,
                             'Number of shards in validation TFRecord files.')
 
 tf.app.flags.DEFINE_integer('num_threads', 8,
@@ -162,7 +162,6 @@ class ImageCoder(object):
                               feed_dict={self._cmyk_data: image_data})
 
     def decode_jpeg(self, image_data):
-
         image = self._sess.run(self._decode_jpeg,
                                feed_dict={self._decode_jpeg_data: image_data})
 
@@ -173,7 +172,7 @@ class ImageCoder(object):
 
 def append_file(line):
     with open('append.txt', 'a') as  f:
-        f.writelines(line+'\n')
+        f.writelines(line + '\n')
 
 
 def _is_png(filename):
@@ -379,7 +378,7 @@ def _process_image_files(name, filenames, synsets, labels, humans,
     sys.stdout.flush()
 
 
-def _find_image_files(data_dir, labels_file):
+def _find_image_files(data_dir, labels_file, split='train', limit=10): # limit for dbg
     """Build a list of all images files and labels in the data set.
 
     Args:
@@ -414,15 +413,24 @@ def _find_image_files(data_dir, labels_file):
       labels: list of integer; each integer identifies the ground truth.
     """
     print('Determining list of input files and labels from %s.' % data_dir)
-    challenge_synsets = [l.strip() for l in
-                         tf.gfile.FastGFile(labels_file, 'r').readlines()]
-    challenge_synsets = ['n11635830', 'n12406902']
+
+    challenge_synsets = []
+    for l in tf.gfile.FastGFile(labels_file, 'r').readlines():
+        node = '../data/' + l.strip()
+        if not tf.gfile.Exists(node):
+            tf.logging.warn('not exsist {}'.format(node))
+        else:
+            challenge_synsets.append(l.strip())
+
+        if limit is not None and len(challenge_synsets) >= limit:
+            break
+
     labels = []
     filenames = []
     synsets = []
 
-    # Leave label index 0 empty as a background class.
-    label_index = 1
+    # Leave label index 0 empty as a background class if needed
+    label_index = 0
 
     # Construct the list of JPEG files and labels.
     for synset in challenge_synsets:
@@ -449,6 +457,15 @@ def _find_image_files(data_dir, labels_file):
     synsets = [synsets[i] for i in shuffled_index]
     labels = [labels[i] for i in shuffled_index]
 
+    if split is not None and split == 'train':
+        filenames = filenames[:9]
+        synsets = synsets[:9]
+        labels = labels[:9]
+    elif split is not None and (split == 'validation' or split == 'val' or split == 'test'):
+        filenames = filenames[9:]
+        synsets = synsets[9:]
+        labels = labels[9:]
+
     print('Found %d JPEG files across %d labels inside %s.' %
           (len(filenames), len(challenge_synsets), data_dir))
     return filenames, synsets, labels
@@ -472,7 +489,7 @@ def _find_human_readable_labels(synsets, synset_to_human):
     return humans
 
 
-def _process_dataset(name, directory, num_shards, synset_to_human, ):
+def _process_dataset(name, directory, num_shards, synset_to_human  ):
     """Process a complete data set and save it as a TFRecord.
 
     Args:
@@ -484,7 +501,7 @@ def _process_dataset(name, directory, num_shards, synset_to_human, ):
       image_to_bboxes: dictionary mapping image file names to a list of
         bounding boxes. This list contains 0+ bounding boxes.
     """
-    filenames, synsets, labels = _find_image_files(directory, FLAGS.labels_file)
+    filenames, synsets, labels = _find_image_files(directory, FLAGS.labels_file,split=name)
     humans = _find_human_readable_labels(synsets, synset_to_human)
 
     _process_image_files(name, filenames, synsets, labels,
@@ -530,6 +547,8 @@ def main(unused_argv):
         'Please make the FLAGS.num_threads commensurate with '
         'FLAGS.validation_shards')
     print('Saving results to %s' % FLAGS.output_directory)
+    tf.gfile.DeleteRecursively(FLAGS.train_directory)
+    tf.gfile.DeleteRecursively(FLAGS.validation_directory)
 
     # Build a map from synset to human-readable label.
     synset_to_human = _build_synset_lookup(FLAGS.imagenet_metadata_file)
