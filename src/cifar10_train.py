@@ -44,10 +44,9 @@ def main(args):
     total_loss = slim.losses.get_total_loss()
     tf.summary.scalar('loss', total_loss)
 
-    # use RMSProp to optimize
+
     optimizer = tf.train.MomentumOptimizer(0.001, 0.9)
-    # optimizer = tf.train.RMSPropOptimizer(0.001, 0.9)
-    # optimizer = tf.train.GradientDescentOptimizer(0.001)
+
     # create train op
     train_op = slim.learning.create_train_op(
         total_loss,

@@ -29,8 +29,8 @@ def to_int(x):
 def init_dev(n=(0,)):
     from os.path import expanduser
     home = expanduser("~")
-    if isinstance(n,int):
-        n=(n,)
+    if isinstance(n, int):
+        n = (n,)
     devs = ''
     for n_ in n:
         devs += str(n_) + ','
@@ -72,7 +72,7 @@ def get_dev(n=1, ok=(0, 1, 2, 3, 4, 5, 6, 7)):
     def _limit(devs, ok):
         return [dev for dev in devs if dev in ok]
 
-    devs = GPUtil.getAvailable(order='memory', maxLoad=0.5, maxMemory=0.5, limit=n)
+    devs = GPUtil.getAvailable(order='memory', maxLoad=0.5, maxMemory=0.5, limit=n)  #
     devs = _limit(devs, ok)
     if len(devs) >= 1:
         print('available {}'.format(devs))
@@ -278,7 +278,13 @@ def mkdir_p(path, delete=False):
 def shell(cmd, block=True):
     my_env = os.environ.copy()
     if block:
-        subprocess.call(cmd.split())
+        # subprocess.call(cmd.split())
+        task = subprocess.Popen(cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                env=my_env)
+        return task.communicate()
     else:
         print 'Non-block!'
         task = subprocess.Popen(cmd,
@@ -313,7 +319,7 @@ def tar(path, to_path=None):
         print cmd
     else:
         cmd = "tar xf " + path
-    shell(cmd, block=False)
+    shell(cmd, block=True)
     if os.path.exists(path):
         rm(path)
 
@@ -324,6 +330,7 @@ def rmdir(path):
 
 
 def rm(path, block=True):
+    print('Are you sure to rm {}'.format(path))
     cmd = 'rm -rf ' + path
     return shell(cmd, block=block)
 
@@ -517,6 +524,7 @@ def merge_dir(dir_l):
             else:
                 print parent
 
+
 def clean_name(name):
     import re
     name = re.findall('([a-zA-Z0-9/-]+)(?::\d+)?', name)[0]
@@ -601,11 +609,16 @@ def tar_imagenet():
     os.chdir('data/imagenet22k-raw')
     files = glob.glob('*.tar')
     task_l = []
-    for file in files:
+    for file in shuffle_iter(files):
+        if file not in glob.glob('*.tar'): continue
         mkdir_p(file.strip('.tar'), delete=True)
-        tar(file, file.strip('.tar'))
-        task_l.append(rm(file, block=True))
-    [task.communicate() for task in task_l]
+        task_l.append(tar(file, file.strip('.tar')))
+        rm(file, block=True)
+        while os.path.exists(file): pass
+        if len(task_l) >= 1000:
+            [task.communicate() for task in task_l]
+            task_l=[]
+
 
 @chdir_to_root
 def gen_imagenet22k_label():
@@ -630,9 +643,20 @@ def transfer():
             task_l = []
 
 
+@chdir_to_root
+def check_jpeg():
+    for img in glob.iglob('data/imagenet22k-raw/*/*.JPEG'):
+        try:
+            im = plt.imread(img)
+            print img
+        except Exception as inst:
+            print img, inst
+            # from IPython import embed; embed()
+
 
 if __name__ == '__main__':
-    # tar_imagenet()
+    cpu_priority(19)
+    tar_imagenet()
     # gen_imagenet22k_label()
-
+    # check_jpeg()
     pass

@@ -8,29 +8,32 @@ import utils, numpy as np
 import tensorflow.contrib.slim as slim
 
 flags = tf.app.flags
-flags.DEFINE_string('data_dir', '../data/imagenet10k-hhd',
+FLAGS = flags.FLAGS
+flags.DEFINE_string('data_dir', '../data/imagenet10k',
                     'Directory with data.')
 flags.DEFINE_integer('batch_size', 32,
                      'Batch size.')
 flags.DEFINE_bool('dbg', True,
                   'dbg')
-flags.DEFINE_string('log_dir',
-                    '../output/imagenet101',
-                    'Directory with the log data.')
-flags.DEFINE_integer('num_clones', 2,
+flags.DEFINE_integer('num_clones', 4,
                      'num_clones')
 flags.DEFINE_string('checkpoint_path', '../models/resnet_v2_101.ckpt',
                     'checkpoint path')
-flags.DEFINE_integer('nclasses', 1000,  # todo
+flags.DEFINE_integer('nclasses', 10,  # todo
                      'nclasses')
 flags.DEFINE_integer('nsteps', 10000,
                      'nsteps')
+# if not FLAGS.dbg:
+#     flags.DEFINE_string('log_dir',
+#                         '../output/imagenet101',
+#                         'Directory with the log data.')
+# else:
+flags.DEFINE_string('log_dir',
+                    '../output/' + utils.randomword(10),
+                    'log data')
 
 beta = 0.1
 gamma = 0.1
-FLAGS = flags.FLAGS
-if FLAGS.dbg:
-    FLAGS.log_dir = utils.randomword(10)
 
 
 def clone_fn(batch_queue):
@@ -68,7 +71,7 @@ def get_init_fn():
         slim.get_variables_to_restore(
             exclude=[".*logits.*", ".*Ftrl.*", '.*Momentum.*', '.*fully_connected.*', '.*global_step.*']),
         ignore_missing_vars=False
-        )
+    )
 
 
 def train_step_fn(session, *args, **kwargs):
@@ -163,11 +166,14 @@ def main(args):
             train_tensor,
             session_config=_sess_config,
             logdir=FLAGS.log_dir,
-            is_chief=1,
             init_fn=get_init_fn(),
             train_step_fn=train_step_fn,
             summary_op=summary_op,
             number_of_steps=FLAGS.nsteps,
+            save_interval_secs=1200,
+            save_summaries_secs=300,
+            log_every_n_steps=20,
+            # trace_every_n_steps=20,
         )
 
 

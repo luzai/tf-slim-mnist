@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from preprocessing import lenet_preprocessing
+from preprocessing import vgg_preprocessing
 import tensorflow.contrib.slim as slim
 import tensorflow.contrib.slim.nets
 from tensorflow.contrib.slim.python.slim.nets import resnet_utils
@@ -42,13 +42,13 @@ def resnet101_2(images, classes):
 def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
     data_provider = slim.dataset_data_provider.DatasetDataProvider(
         dataset,
-        num_readers=32,
+        num_readers=64,
         common_queue_capacity=20 * batch_size,
         common_queue_min=10 * batch_size)
 
     image, label = data_provider.get(['image', 'label'])
 
-    image = lenet_preprocessing.preprocess_image(
+    image = vgg_preprocessing.preprocess_image(
         image,
         height,
         width,
@@ -58,8 +58,10 @@ def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
         [image, label],
         batch_size=batch_size,
         # allow_smaller_final_batch=True,
-        num_threads=8,
-        capacity=5 * batch_size,
+        num_threads=16,
+        capacity=10 * batch_size,
     )
-    batch_queue = slim.prefetch_queue.prefetch_queue([images, labels], capacity=2 * 8)
+    batch_queue = slim.prefetch_queue.prefetch_queue(
+        [images, labels], num_threads=16,
+        capacity=5 * batch_size)
     return batch_queue

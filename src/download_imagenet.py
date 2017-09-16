@@ -7,9 +7,7 @@ import os
 from xml.etree import ElementTree
 import requests
 from utils import *
-
 from metadata import *
-
 import sys
 
 
@@ -41,6 +39,10 @@ def download_file(url, dst, params={}, debug=True):
             fp.write(response.content)
         print 'ok'
         print response.url, "done.\n"
+        mkdir_p(dst.rstrip('.tar'), delete=True)
+        tar(dst, dst.rstrip('.tar'))
+        rm(dst, block=True)
+        while os.path.exists(dst): pass
 
 
 def find_path(folder):

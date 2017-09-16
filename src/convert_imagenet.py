@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
@@ -11,21 +10,19 @@ import numpy as np
 import tensorflow as tf
 import utils
 
-utils.init_dev(0)
-
 tf.app.flags.DEFINE_string('train_directory', '../data/imagenet22k-raw',
                            'Training data directory')
 tf.app.flags.DEFINE_string('validation_directory', '../data/imagenet22k-raw',
                            'Validation data directory')
-tf.app.flags.DEFINE_string('output_directory', '../data/imagenet10k',
+tf.app.flags.DEFINE_string('output_directory', '../data/imagenet10k-hhd',
                            'Output data directory')
 
 tf.app.flags.DEFINE_integer('train_shards', 1024,
                             'Number of shards in training TFRecord files.')
-tf.app.flags.DEFINE_integer('validation_shards', 128,
+tf.app.flags.DEFINE_integer('validation_shards', 128,  # 128
                             'Number of shards in validation TFRecord files.')
 
-tf.app.flags.DEFINE_integer('num_threads', 8,
+tf.app.flags.DEFINE_integer('num_threads', 64,
                             'Number of threads to preprocess the images.')
 
 # The labels file contains a list of valid labels are held in this file.
@@ -37,7 +34,7 @@ tf.app.flags.DEFINE_integer('num_threads', 8,
 # each synset contained in the file to an integer (based on the alphabetical
 # ordering). See below for details.
 tf.app.flags.DEFINE_string('labels_file',
-                           '../data/imagenet10k.txt',
+                           '../data/imagenet1k.txt',
                            'Labels file')
 
 # This file containing mapping from synset to human-readable label.
@@ -53,23 +50,6 @@ tf.app.flags.DEFINE_string('imagenet_metadata_file',
                            # '../data/imagenet_metadata.txt',
                            '../data/words.txt',
                            'ImageNet metadata file')
-
-# This file is the output of process_bounding_box.py
-# Assumes each line of the file looks like:
-#
-#   n00007846_64193.JPEG,0.0060,0.2620,0.7545,0.9940
-#
-# where each line corresponds to one bounding box annotation associated
-# with an image. Each line can be parsed as:
-#
-#   <JPEG file name>, <xmin>, <ymin>, <xmax>, <ymax>
-#
-# Note that there might exist mulitple bounding box annotations associated
-# with an image file.
-
-# tf.app.flags.DEFINE_string('bounding_box_file',
-#                            './imagenet_2012_bounding_boxes.csv',
-#                            'Bounding box file')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -226,26 +206,28 @@ def _process_image(filename, coder):
       width: integer, image width in pixels.
     """
     # Read the image file.
-    image_data = tf.gfile.FastGFile(filename, 'r').read()
-
-    # Clean the dirty data.
-    if _is_png(filename):
-        # 1 image is a PNG.
-        print('Converting PNG to JPEG for %s' % filename)
-        image_data = coder.png_to_jpeg(image_data)
-    elif _is_cmyk(filename):
-        # 22 JPEG images are in CMYK colorspace.
-        print('Converting CMYK to RGB for %s' % filename)
-        image_data = coder.cmyk_to_rgb(image_data)
-
-    # Decode the RGB JPEG.
     try:
+        image_data = tf.gfile.FastGFile(filename, 'r').read()
+
+        # Clean the dirty data.
+        if _is_png(filename):
+            # 1 image is a PNG.
+            print('Converting PNG to JPEG for %s' % filename)
+            image_data = coder.png_to_jpeg(image_data)
+        elif _is_cmyk(filename):
+            # 22 JPEG images are in CMYK colorspace.
+            print('Converting CMYK to RGB for %s' % filename)
+            image_data = coder.cmyk_to_rgb(image_data)
+
+        # Decode the RGB JPEG.
+
         image = coder.decode_jpeg(image_data)
     except Exception as inst:
-        os.remove(filename)
-        print(inst)
-        print(filename)
+        utils.rm(filename)
+        tf.logging.error(inst)
+        tf.logging.error(filename)
         append_file(filename)
+        # raise ValueError('rm file')
 
     # Check that image converted to RGB
     assert len(image.shape) == 3
@@ -378,7 +360,7 @@ def _process_image_files(name, filenames, synsets, labels, humans,
     sys.stdout.flush()
 
 
-def _find_image_files(data_dir, labels_file, split='train', limit=10): # limit for dbg
+def _find_image_files(data_dir, labels_file, split='train', limit=495):  # limit for dbg
     """Build a list of all images files and labels in the data set.
 
     Args:
@@ -416,7 +398,7 @@ def _find_image_files(data_dir, labels_file, split='train', limit=10): # limit f
 
     challenge_synsets = []
     for l in tf.gfile.FastGFile(labels_file, 'r').readlines():
-        node = '../data/' + l.strip()
+        node = data_dir + '/' + l.strip()
         if not tf.gfile.Exists(node):
             tf.logging.warn('not exsist {}'.format(node))
         else:
@@ -424,7 +406,10 @@ def _find_image_files(data_dir, labels_file, split='train', limit=10): # limit f
 
         if limit is not None and len(challenge_synsets) >= limit:
             break
-
+    if len(challenge_synsets) < limit:
+        print(len(challenge_synsets))
+        raise ValueError('no image')
+    print('>> len of challenge synsets {}'.format(len(challenge_synsets)))
     labels = []
     filenames = []
     synsets = []
@@ -436,6 +421,18 @@ def _find_image_files(data_dir, labels_file, split='train', limit=10): # limit f
     for synset in challenge_synsets:
         jpeg_file_path = '%s/%s/*.JPEG' % (data_dir, synset)
         matching_files = tf.gfile.Glob(jpeg_file_path)
+        # for t_ in matching_files:
+        #     # print(t_)
+        #
+        #     utils.plt.imread(t_)
+        #     from PIL import Image
+        #     im = Image.open(t_)
+        #     im._getexif()
+
+        if split == 'train':
+            matching_files = matching_files[:9 * len(matching_files) // 10]
+        elif split == 'validation':
+            matching_files = matching_files[9 * len(matching_files) // 10:]
 
         labels.extend([label_index] * len(matching_files))
         synsets.extend([synset] * len(matching_files))
@@ -456,15 +453,6 @@ def _find_image_files(data_dir, labels_file, split='train', limit=10): # limit f
     filenames = [filenames[i] for i in shuffled_index]
     synsets = [synsets[i] for i in shuffled_index]
     labels = [labels[i] for i in shuffled_index]
-
-    if split is not None and split == 'train':
-        filenames = filenames[:9]
-        synsets = synsets[:9]
-        labels = labels[:9]
-    elif split is not None and (split == 'validation' or split == 'val' or split == 'test'):
-        filenames = filenames[9:]
-        synsets = synsets[9:]
-        labels = labels[9:]
 
     print('Found %d JPEG files across %d labels inside %s.' %
           (len(filenames), len(challenge_synsets), data_dir))
@@ -489,7 +477,7 @@ def _find_human_readable_labels(synsets, synset_to_human):
     return humans
 
 
-def _process_dataset(name, directory, num_shards, synset_to_human  ):
+def _process_dataset(name, directory, num_shards, synset_to_human):
     """Process a complete data set and save it as a TFRecord.
 
     Args:
@@ -501,7 +489,7 @@ def _process_dataset(name, directory, num_shards, synset_to_human  ):
       image_to_bboxes: dictionary mapping image file names to a list of
         bounding boxes. This list contains 0+ bounding boxes.
     """
-    filenames, synsets, labels = _find_image_files(directory, FLAGS.labels_file,split=name)
+    filenames, synsets, labels = _find_image_files(directory, FLAGS.labels_file, split=name)
     humans = _find_human_readable_labels(synsets, synset_to_human)
 
     _process_image_files(name, filenames, synsets, labels,
@@ -547,17 +535,19 @@ def main(unused_argv):
         'Please make the FLAGS.num_threads commensurate with '
         'FLAGS.validation_shards')
     print('Saving results to %s' % FLAGS.output_directory)
-    tf.gfile.DeleteRecursively(FLAGS.train_directory)
-    tf.gfile.DeleteRecursively(FLAGS.validation_directory)
 
     # Build a map from synset to human-readable label.
     synset_to_human = _build_synset_lookup(FLAGS.imagenet_metadata_file)
     # Run it!
-    _process_dataset('train', FLAGS.train_directory, FLAGS.train_shards,
-                     synset_to_human)
+
     _process_dataset('validation', FLAGS.validation_directory,
                      FLAGS.validation_shards, synset_to_human)
 
+    _process_dataset('train', FLAGS.train_directory, FLAGS.train_shards,
+                     synset_to_human)
+
 
 if __name__ == '__main__':
+    utils.rm(FLAGS.output_directory + '/*', block=True)
+    utils.init_dev(0)
     tf.app.run()
