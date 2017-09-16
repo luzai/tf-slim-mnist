@@ -1,6 +1,9 @@
 *.db
 *.zip
 models/
+*.tfrecord
+*.tar.gz
+cifar-100-python/
 .idea/
 
 ### TeX template

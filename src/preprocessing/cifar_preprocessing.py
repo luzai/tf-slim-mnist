@@ -261,7 +261,7 @@ def inputs(eval_data, data_dir, batch_size):
 
 
 def train_process(image, height, width):
-    tf.summary.image('input/raw', image)
+    tf.summary.image('input/raw', tf.expand_dims(image, 0))
     distorted_image = tf.random_crop(image, [height, width, 3])
 
     # Randomly flip the image horizontally.
@@ -275,13 +275,13 @@ def train_process(image, height, width):
                                                  max_delta=63)
     distorted_image = tf.image.random_contrast(distorted_image,
                                                lower=0.2, upper=1.8)
-    tf.summary.image('input/distort', distorted_image)
+    tf.summary.image('input/distort', tf.expand_dims(distorted_image, 0))
     # Subtract off the mean and divide by the variance of the pixels.
     float_image = tf.image.per_image_standardization(distorted_image)
 
     # Set the shapes of tensors.
     float_image.set_shape([height, width, 3])
-    tf.summary.image('input/float', float_image)
+    tf.summary.image('input/float', tf.expand_dims(float_image, 0))
     return float_image
 
 

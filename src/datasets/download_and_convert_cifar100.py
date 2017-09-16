@@ -116,8 +116,8 @@ def _add_to_tfrecord(filename, tfrecord_writer, offset=0):
     images = images.reshape((num_images, 3, 32, 32))
     labels = data[b'fine_labels']
     coarse_labels = data[b'coarse_labels']
-    from cifar100_recode import remap
-    labels = [remap[l] for l in labels]
+    from cifar100 import mapp
+    labels = [mapp[l] for l in labels]
     mapping = {}
     mapping_human = {}
 

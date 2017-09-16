@@ -9,14 +9,13 @@ import tensorflow.contrib.slim as slim
 
 utils.init_dev(utils.get_dev(ok=[0, 1, 2, 3]))
 
-
 class DictClass(dict):
     __getattr__, __setattr__ = dict.get, dict.__setitem__
 
 
 FLAGS = DictClass(dict(data_dir='../data/cifar100',
                        batch_size=128,
-                       log_dir='../output/multiloss-dry2',
+                       log_dir='../output/multiloss-dry3',
                        checkpoint_path='../models/resnet50/resnet_v2_50.ckpt',
                        multiloss=False,
                        ))
@@ -88,7 +87,8 @@ def main(args):
             onehot_labels=one_hot_labels_group,
             loss_collection=None,
             weights=gamma)
-        tf.summary.scalar('loss/group/group'+str(ind), loss_group_)
+        if ind<=5:
+            tf.summary.scalar('loss/group/group'+str(ind), loss_group_)
         loss_group_l.append(loss_group_)
 
     loss_group = tf.add_n(loss_group_l)
