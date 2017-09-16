@@ -1,7 +1,8 @@
 import tensorflow as tf
 
 from datasets import cifar100
-from model import resnet101, load_batch
+from datasets.cifar100 import load_batch
+from model import resnet101, resnet50
 import utils
 import numpy as np
 import tensorflow.contrib.slim as slim
@@ -14,8 +15,11 @@ class DictClass(dict):
 
 
 FLAGS = DictClass(dict(data_dir='../data/cifar100',
-                       batch_size=32,
-                       log_dir='../output/multiloss-dry-run', ))
+                       batch_size=128,
+                       log_dir='../output/multiloss-dry2',
+                       checkpoint_path='../models/resnet50/resnet_v2_50.ckpt',
+                       multiloss=False,
+                       ))
 
 
 # flags.DEFINE_integer('num_batches', 1,
@@ -43,9 +47,10 @@ def main(args):
         FLAGS.batch_size,
         is_training=True)
     images, labels = batch_queue.dequeue()
-
+    slim.summary.image('input/image', images)
+    # slim.summary.image('input/label',labels)
     # run the image through the model
-    predictions, end_points = resnet101(images, classes=100)
+    predictions, end_points = resnet50(images, classes=100)
 
     beta = 1.
     gamma = 1.
@@ -67,7 +72,7 @@ def main(args):
     loss_20 = tf.losses.log_loss(
         predictions=tf.reduce_sum(predictions_reshape, axis=-1),
         labels=one_hot_labels_coarse, weights=beta
-        # , loss_collection=None
+        , loss_collection=None if not FLAGS.multi_loss else tf.GraphKeys.LOSSES
     )
 
     loss_group_l = []
@@ -78,15 +83,17 @@ def main(args):
         predictions_ = tf.gather_nd(predictions_, sel)
 
         one_hot_labels_group = slim.one_hot_encoding(tf.mod(labels, 5), 5)
-        loss_group_l.append(
-            tf.losses.softmax_cross_entropy(
-                logits=predictions_,
-                onehot_labels=one_hot_labels_group,
-                loss_collection=None,
-                weights=gamma))
+        loss_group_ = tf.losses.softmax_cross_entropy(
+            logits=predictions_,
+            onehot_labels=one_hot_labels_group,
+            loss_collection=None,
+            weights=gamma)
+        tf.summary.scalar('loss/group/group'+str(ind), loss_group_)
+        loss_group_l.append(loss_group_)
 
     loss_group = tf.add_n(loss_group_l)
-    tf.losses.add_loss(loss_group)
+    if FLAGS.multi_loss:
+        tf.losses.add_loss(loss_group)
 
     print '>> loss', tf.losses.get_losses(), len(tf.losses.get_losses())  # tf.get_collection(tf.GraphKeys.LOSSES)
 
@@ -108,20 +115,18 @@ def main(args):
     train_op = slim.learning.create_train_op(
         total_loss,
         optimizer,
-        summarize_gradients=False,
-        variables_to_train=slim.get_variables('resnet_v2_101/block4/.*/weights') + slim.get_variables(
-            'resnet_v2_101/logits/*') + slim.get_variables('resnet_v2_101/block4/.*/beta') + slim.get_variables(
-            'resnet_v2_101/block4/.*/gamma'),
+        # summarize_gradients=True,
+        # variables_to_train=slim.get_variables('resnet_v2_101/block4/.*/weights') + slim.get_variables(
+        #     'resnet_v2_101/logits/*') + slim.get_variables('resnet_v2_101/block4/.*/beta') + slim.get_variables(
+        #     'resnet_v2_101/block4/.*/gamma'),
         # slim.get_variables('resnet_v2_101/logits'),
     )
 
-    variables_to_restore = slim.get_variables_to_restore(exclude=["resnet_v2_101/logits", ".*Ftrl.*", '.*Momentum.*'])
-
-    checkpoint_path = '../models/resnet_v2_101.ckpt'
-    # checkpoint_path = '../output/cifar100/model.ckpt-5564631'
+    variables_to_restore = slim.get_variables_to_restore(
+        exclude=[".*logits.*", ".*Ftrl.*", '.*Momentum.*', 'global_step'])
 
     init_assign_op, init_feed_dict = slim.assign_from_checkpoint(
-        checkpoint_path, variables_to_restore)
+        FLAGS.checkpoint_path, variables_to_restore)
 
     global_step = slim.get_or_create_global_step()
     global_step_init = tf.assign(global_step, 0)
@@ -134,7 +139,7 @@ def main(args):
     batch_queue_val = load_batch(cifar100.get_split('test', FLAGS.data_dir), FLAGS.batch_size, is_training=False)
     images_val, labels_val = batch_queue_val.dequeue()
     with tf.variable_scope('', reuse=True):
-        predictions_val, _ = resnet101(images_val, classes=100)
+        predictions_val, _ = resnet50(images_val, classes=100)
 
     acc_val = slim.metrics.accuracy(tf.to_int64(tf.argmax(predictions_val, 1)), labels_val)
 

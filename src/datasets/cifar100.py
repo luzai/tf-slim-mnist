@@ -17,13 +17,15 @@
 The dataset scripts used to create the dataset can be found at:
 tensorflow/models/slim/datasets/download_and_convert_cifar10.py
 """
-
+from __future__ import absolute_import
 from __future__ import division
+
 
 import os
 import tensorflow as tf
 import numpy as np
-import dataset_utils
+from datasets import dataset_utils
+from preprocessing import cifar_preprocessing
 
 slim = tf.contrib.slim
 
@@ -252,3 +254,33 @@ def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
         items_to_descriptions=_ITEMS_TO_DESCRIPTIONS,
         num_classes=_NUM_CLASSES,
         labels_to_names=labels_to_names)
+
+
+
+def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
+    data_provider = slim.dataset_data_provider.DatasetDataProvider(
+        dataset,
+        num_readers=64,
+        common_queue_capacity=20 * batch_size,
+        common_queue_min=10 * batch_size)
+
+    image, label = data_provider.get(['image', 'label'])
+
+    image = cifar_preprocessing.preprocess_image(
+        image,
+        height,
+        width,
+        is_training)
+
+    images, labels = tf.train.batch(
+        [image, label],
+        batch_size=batch_size,
+        # allow_smaller_final_batch=True,
+        num_threads=16,
+        capacity=10 * batch_size,
+    )
+    batch_queue = slim.prefetch_queue.prefetch_queue(
+        [images, labels], num_threads=16,
+        capacity=5 * batch_size)
+    return batch_queue
+

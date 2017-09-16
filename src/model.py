@@ -1,9 +1,5 @@
 import tensorflow as tf
-
-from preprocessing import vgg_preprocessing
 import tensorflow.contrib.slim as slim
-import tensorflow.contrib.slim.nets
-from tensorflow.contrib.slim.python.slim.nets import resnet_utils
 from tensorflow.contrib.slim.python.slim.nets import resnet_v2
 
 
@@ -15,10 +11,17 @@ def resnet101(images, classes=10):
 
     return logits, end_points
 
+def resnet50(images, classes=10):
+    with slim.arg_scope(resnet_v2.resnet_arg_scope()):
+        logits, end_points = resnet_v2.resnet_v2_50(images, classes, is_training=True)
+
+        logits = logits[:, 0, 0, :]
+
+    return logits, end_points
+
 
 import tensorflow.contrib.layers as layers_lib
 from tensorflow.contrib.layers.python.layers import layers
-
 
 def resnet101_2(images, classes):
     # tf.reset_default_graph()
@@ -37,31 +40,3 @@ def resnet101_2(images, classes):
         logits = slim.flatten(logits)
         logits = slim.fully_connected(logits, classes, scope='logits', activation_fn=None, normalizer_fn=None)
     return logits
-
-
-def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
-    data_provider = slim.dataset_data_provider.DatasetDataProvider(
-        dataset,
-        num_readers=64,
-        common_queue_capacity=20 * batch_size,
-        common_queue_min=10 * batch_size)
-
-    image, label = data_provider.get(['image', 'label'])
-
-    image = vgg_preprocessing.preprocess_image(
-        image,
-        height,
-        width,
-        is_training)
-
-    images, labels = tf.train.batch(
-        [image, label],
-        batch_size=batch_size,
-        # allow_smaller_final_batch=True,
-        num_threads=16,
-        capacity=10 * batch_size,
-    )
-    batch_queue = slim.prefetch_queue.prefetch_queue(
-        [images, labels], num_threads=16,
-        capacity=5 * batch_size)
-    return batch_queue

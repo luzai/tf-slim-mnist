@@ -38,6 +38,7 @@ import tensorflow as tf
 
 from datasets import dataset_utils
 from tensorflow.contrib import slim
+from preprocessing import inception_preprocessing
 
 # TODO(nsilberman): Add tfrecord file type once the script is updated.
 _FILE_PATTERN = '%s-*'
@@ -54,6 +55,34 @@ _ITEMS_TO_DESCRIPTIONS = {
 }
 
 _NUM_CLASSES = 1000
+
+
+def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
+    data_provider = slim.dataset_data_provider.DatasetDataProvider(
+        dataset,
+        num_readers=64,
+        common_queue_capacity=20 * batch_size,
+        common_queue_min=10 * batch_size)
+
+    image, label = data_provider.get(['image', 'label'])
+
+    image = inception_preprocessing.preprocess_image(
+        image,
+        height,
+        width,
+        is_training)
+
+    images, labels = tf.train.batch(
+        [image, label],
+        batch_size=batch_size,
+        # allow_smaller_final_batch=True,
+        num_threads=16,
+        capacity=10 * batch_size,
+    )
+    batch_queue = slim.prefetch_queue.prefetch_queue(
+        [images, labels], num_threads=16,
+        capacity=5 * batch_size)
+    return batch_queue
 
 
 def create_readable_names_for_imagenet_labels():

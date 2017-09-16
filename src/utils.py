@@ -604,20 +604,19 @@ def rsync(from_, to):
     return shell(cmd, block=False)
 
 
-@chdir_to_root
+# @chdir_to_root
 def tar_imagenet():
+    os.chdir(root_path)
     os.chdir('data/imagenet22k-raw')
     files = glob.glob('*.tar')
-    task_l = []
+    # task_l = []
     for file in shuffle_iter(files):
         if file not in glob.glob('*.tar'): continue
         mkdir_p(file.strip('.tar'), delete=True)
-        task_l.append(tar(file, file.strip('.tar')))
+        tar(file, file.strip('.tar'))
         rm(file, block=True)
         while os.path.exists(file): pass
-        if len(task_l) >= 1000:
-            [task.communicate() for task in task_l]
-            task_l=[]
+    print 'ok'
 
 
 @chdir_to_root
@@ -655,8 +654,16 @@ def check_jpeg():
 
 
 if __name__ == '__main__':
-    cpu_priority(19)
-    tar_imagenet()
+    # cpu_priority(19)
+    import multiprocessing as mp
+
+    result = []
+    pool = mp.Pool(64)
+    result.append(pool.apply_async(func=tar_imagenet, args=()))
+    pool.close()
+    pool.join()
+    for res in result:
+        print res.get()
     # gen_imagenet22k_label()
     # check_jpeg()
     pass
