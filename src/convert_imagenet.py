@@ -538,15 +538,16 @@ def main(unused_argv):
     # Build a map from synset to human-readable label.
     synset_to_human = _build_synset_lookup(FLAGS.imagenet_metadata_file)
     # Run it!
-
+    utils.rm(FLAGS.output_directory + '/train*', block=True)
     _process_dataset('validation', FLAGS.validation_directory,
                      FLAGS.validation_shards, synset_to_human)
 
+    utils.rm(FLAGS.output_directory + '/validation*', block=True)
     _process_dataset('train', FLAGS.train_directory, FLAGS.train_shards,
                      synset_to_human)
 
 
 if __name__ == '__main__':
-    utils.rm(FLAGS.output_directory + '/*', block=True)
+
     utils.init_dev(0)
     tf.app.run()

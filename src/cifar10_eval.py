@@ -35,12 +35,12 @@ def main(args):
         onehot_labels=one_hot_labels)
 
     total_loss = tf.losses.get_total_loss()
-    tf.summary.scalar('loss/val/ori', total_loss)
+    # tf.summary.scalar('loss/val/ori', total_loss)
 
     # streaming metrics to evaluate
     predictions = tf.to_int64(tf.argmax(predictions, 1))
     metrics_to_values, metrics_to_updates = slim.metrics.aggregate_metric_map({
-        'mse/val': slim.metrics.streaming_mean_squared_error(predictions, labels),
+        # 'mse/val': slim.metrics.streaming_mean_squared_error(predictions, labels),
         'acc/val': slim.metrics.streaming_accuracy(predictions, labels),
         'loss/val': slim.metrics.streaming_mean(total_loss)
     })
@@ -48,8 +48,8 @@ def main(args):
     # write the metrics as summaries
     for metric_name, metric_value in metrics_to_values.iteritems():
         tf.summary.scalar(metric_name+'/values', metric_value)
-    for metric_name, metric_value in metrics_to_updates.iteritems():
-        tf.summary.scalar(metric_name+'/update', metric_value)
+    # for metric_name, metric_value in metrics_to_updates.iteritems():
+    #     tf.summary.scalar(metric_name+'/update', metric_value)
 
     # evaluate on the model saved at the checkpoint directory
     # evaluate every eval_interval_secs

@@ -3,7 +3,7 @@ import tensorflow as tf
 from datasets import cifar10
 from model import resnet101
 from datasets.cifar10 import load_batch
-import utils,numpy as np
+import utils, numpy as np
 
 from hypers import cifar10  as FLAGS
 
@@ -37,8 +37,10 @@ def main(args):
     total_loss = tf.losses.get_total_loss()
     tf.summary.scalar('loss/train', total_loss)
 
-    learning_rate = tf.train.exponential_decay(5e-2, slim.get_or_create_global_step(),
-                                               4000, 0.9, staircase=True)
+    learning_rate = tf.train.exponential_decay(
+        FLAGS.init_lr, slim.get_or_create_global_step(),
+        FLAGS.lr_decay_per_steps, FLAGS.lr_decay,
+        staircase=True)
     slim.summary.scalar('lr', learning_rate)
 
     optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
@@ -105,4 +107,6 @@ def main(args):
 
 if __name__ == '__main__':
     utils.rm(FLAGS.log_dir)
+    # utils.rm(FLAGS.log_dir + '_eval')
+    proc = utils.shell('python cifar10_eval.py', block=False)
     tf.app.run()

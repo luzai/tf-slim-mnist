@@ -276,7 +276,10 @@ def mkdir_p(path, delete=False):
 
 
 def shell(cmd, block=True):
+    import os
     my_env = os.environ.copy()
+    home = os.path.expanduser('~')
+    my_env["PATH"] = home + "/anaconda2/bin:" + my_env["PATH"]
     if block:
         # subprocess.call(cmd.split())
         task = subprocess.Popen(cmd,
@@ -296,7 +299,6 @@ def shell(cmd, block=True):
 
 
 def ln(path, to_path):
-
     if osp.exists(to_path):
         # pass
         print 'error! exist ' + to_path
@@ -307,6 +309,7 @@ def ln(path, to_path):
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE)
     return proc
+
 
 def tar(path, to_path=None):
     if not osp.exists(path):
