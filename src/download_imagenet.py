@@ -80,12 +80,12 @@ if __name__ == "__main__":
     pools = mp.Pool(processes=1)
     ttl_category = 0
     task_l = []
-    nodes = set()
-    nodes = nodes.union(set(imagenet1k))
+    # nodes = set()
+    # nodes = nodes.union(set(imagenet1k))
     # nodes = nodes.union(set(imagenet7k))
     # nodes = nodes.union(set(shuffle_iter(nx.dfs_preorder_nodes(ori_tree, 'fall11'))))
-    for node in nodes:
-        # for node in nx.dfs_preorder_nodes(tree, 'fall11'):
+    # for node in nodes:
+    for node in nx.dfs_preorder_nodes(tree, 'fall11'):
         if len(ori_tree.successors(node)) > 0:
             continue
         ttl_category += 1

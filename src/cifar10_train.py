@@ -3,7 +3,7 @@ import tensorflow as tf
 from datasets import cifar10
 from model import resnet101
 from datasets.cifar10 import load_batch
-import utils
+import utils,numpy as np
 
 from hypers import cifar10  as FLAGS
 
@@ -35,9 +35,13 @@ def main(args):
         logits=predictions,
         onehot_labels=one_hot_labels)
     total_loss = tf.losses.get_total_loss()
-    tf.summary.scalar('loss', total_loss)
+    tf.summary.scalar('loss/train', total_loss)
 
-    optimizer = tf.train.MomentumOptimizer(0.001, 0.9)
+    learning_rate = tf.train.exponential_decay(5e-2, slim.get_or_create_global_step(),
+                                               4000, 0.9, staircase=True)
+    slim.summary.scalar('lr', learning_rate)
+
+    optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
 
     # create train op
     train_op = slim.learning.create_train_op(
@@ -56,41 +60,30 @@ def main(args):
     global_step = slim.get_or_create_global_step()
     global_step_init = tf.assign(global_step, 0)
 
+    acc = slim.metrics.accuracy(tf.to_int64(tf.argmax(predictions, 1)), labels)
+    slim.summary.scalar('acc/train', acc)
+
     def InitAssignFn(sess):
         print 'init from pretrained model'
         sess.run([init_assign_op, global_step_init], init_feed_dict)
-
-    batch_queue_val = load_batch(cifar10.get_split('test', FLAGS.data_dir), FLAGS.batch_size, is_training=False)
-    images_val, labels_val = batch_queue_val.dequeue()
-    tf.get_variable_scope().reuse_variables()
-    predictions_val = resnet101(images_val)
-
-    # acc_val = slim.metrics.accuracy(tf.to_int64(tf.argmax(predictions_val, 1)), labels_val)
-    #
-    # acc = slim.metrics.accuracy(tf.to_int64(tf.argmax(predictions, 1)), labels)
-    #
-    # tf.summary.scalar('acc/train', acc)
-    # tf.summary.scalar('acc/val', acc_val)
 
     def train_step_fn(session, *args, **kwargs):
         from tensorflow.contrib.slim.python.slim.learning import train_step
 
         total_loss, should_stop = train_step(session, *args, **kwargs)
 
-        # if train_step_fn.step % 20 == 0:
-        #     # acc_val_, acc_ = 0, 0
-        #     acc_val_, acc_ = session.run([train_step_fn.acc_val, train_step_fn.acc])
-        #
-        #     print('Step %s - Loss: %.2f acc_val: %.2f%% acc: %.2f%%' % (
-        #         str(train_step_fn.step).rjust(6, '0'), total_loss,
-        #         acc_val_ * 100, acc_ * 100))
+        if train_step_fn.step % 20 == 0:
+            acc_ = session.run([train_step_fn.acc])
+            # print acc_
+            print('Step {} - Loss: {} acc:{}%'.format(
+                str(train_step_fn.step).rjust(6, '0'), total_loss,
+                np.mean(acc_) * 100))
 
         train_step_fn.step += 1
         return [total_loss, should_stop]
 
     train_step_fn.step = 0
-    # train_step_fn.acc_val = acc_val
-    # train_step_fn.acc = acc
+    train_step_fn.acc = acc
 
     # run training
 

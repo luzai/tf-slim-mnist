@@ -7,10 +7,7 @@ import utils, numpy as np
 import tensorflow.contrib.slim as slim
 
 utils.init_dev(utils.get_dev(ok=[0, 1, 2, 3]))
-from hypers import FLAGS
-
-FLAGS = FLAGS.cifar100
-
+from hypers import cifar100 as FLAGS
 
 # def map_label(input_tensor):
 #     keys = np.array(cifar100.mapp.keys(), dtype=np.int64)

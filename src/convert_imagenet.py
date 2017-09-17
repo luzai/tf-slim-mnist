@@ -34,7 +34,7 @@ tf.app.flags.DEFINE_integer('num_threads', 64,
 # each synset contained in the file to an integer (based on the alphabetical
 # ordering). See below for details.
 tf.app.flags.DEFINE_string('labels_file',
-                           utils.root_path+'/data/imagenet1k.txt',
+                           utils.root_path+'/data/imagenet7k.txt',
                            'Labels file')
 
 # This file containing mapping from synset to human-readable label.
@@ -359,7 +359,7 @@ def _process_image_files(name, filenames, synsets, labels, humans,
     sys.stdout.flush()
 
 
-def _find_image_files(data_dir, labels_file, split='train', limit=495):  # limit for dbg
+def _find_image_files(data_dir, labels_file, split='train', limit=None):  # limit for dbg
     """Build a list of all images files and labels in the data set.
 
     Args:
@@ -414,7 +414,7 @@ def _find_image_files(data_dir, labels_file, split='train', limit=495):  # limit
     synsets = []
 
     # Leave label index 0 empty as a background class if needed
-    label_index = 0
+    label_index = 1
 
     # Construct the list of JPEG files and labels.
     for synset in challenge_synsets:
