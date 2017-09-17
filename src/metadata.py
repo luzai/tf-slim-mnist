@@ -14,8 +14,8 @@ def _read(file, delimiter=None):
     return mapping
 
 
-is_a = _read('../data/wordnet.is_a.txt')
-id2word = _read('../data/words.txt', delimiter='\t')
+is_a = _read(root_path + '/data/wordnet.is_a.txt')
+id2word = _read(root_path + '/data/words.txt', delimiter='\t')
 
 
 @chdir_to_root
@@ -25,23 +25,22 @@ def _read_list(file):
     return lines
 
 
-imagenet10k = _read_list('../data/imagenet10k.txt')
-imagenet7k = _read_list('../data/imagenet7k.txt')
+imagenet10k = _read_list(root_path + '/data/imagenet10k.txt')
+imagenet7k = _read_list(root_path + '/data/imagenet7k.txt')
+imagenet1k = _read_list(root_path + '/data/imagenet1k.txt')
 
+import easydict
 
-class _Class():
-    pass
-
-
-config = _Class()
+config = easydict.EasyDict()
 
 config.synset_url = u"http://www.image-net.org/download/synset"
 config.username = u"luzai"
 config.accesskey = u"a1b86dba55cbb6cc765268b6cf186284ed793a32"
-config.filepath = u"../data/imagenet22k-raw"
+config.filepath = "/mnt/nfs1703/kchen/imagenet10k-raw"  # root_path + "/data/imagenet22k-raw"
+config.filepath_ssd = "/mnt/SSD/luzai/imagenet22k-raw"
 
 config.base_url = u"http://www.image-net.org/api/xml/"
-config.structure_released = u"../data/structure_released.xml"
+config.structure_released = root_path + "/data/structure_released.xml"
 
 graph = nx.DiGraph()
 
@@ -64,8 +63,8 @@ tree = nx.bfs_tree(graph, 'fall11')
 
 
 @chdir_to_root
-def get_imagepath(wnid):
-    return os.path.join(config.filepath, wnid + ".tar")
+def get_imagepath(wnid, ssd=False):
+    return os.path.join(config.filepath, wnid + ".tar") if not ssd else (config.filepath_ssd + '/' + wnid + '.tar')
 
 
 @chdir_to_root
@@ -113,6 +112,7 @@ def nimg_per_class(tree_):
             all_nimg.append(nimg)
             if nimg == 0:
                 print node
+                rm(imagepath)
     return np.sort(all_nimg)[::-1]
 
 
@@ -137,7 +137,7 @@ def tag_tree(tree_):
 
 
 @chdir_to_root
-def slim_tree(tree_):
+def slim_tree(tree_, condition=None):
     '''
     slim tree, remove node that not in imagenet7k and those download fail(may be exists)
     :param tree_:
@@ -146,15 +146,25 @@ def slim_tree(tree_):
     os.chdir('data')
 
     new_tree = nx.DiGraph()
+    if condition == 'imagenet1k':
+        condition = imagenet1k
+    elif condition == 'imagenet7k':
+        condition = imagenet7k
+    elif condition == 'imagenet10k':
+        condition = imagenet10k
+    elif condition == 'imagenet22k':
+        pass  # todo
 
     for node in nx.dfs_preorder_nodes(tree_, 'fall11'):
         hist = nx.shortest_path(tree_, "fall11", node)
-        #     path = list2str(hist,delimier='/')
         imagepath = get_imagepath(node)
         imagepath = imagepath.strip('.tar')
-        if osp.exists(imagepath) and tree_.node[node]['nchild'] == 0 and node in imagenet10k:  # todo
-            new_tree.add_path(hist)
-
+        if osp.exists(imagepath) and tree_.node[node]['nchild'] == 0:
+            if condition is not None and node in condition:
+                new_tree.add_path(hist)
+            elif condition is None:
+                new_tree.add_path(hist)
+    new_tree = tag_tree(new_tree)
     return new_tree
 
 
@@ -186,14 +196,4 @@ def dir2tree():
     return tree_
 
 
-# construct_path()
-
 ori_tree = tag_tree(tree)
-
-
-# slim_tree = slim_tree(ori_tree)
-# slim_tree = tag_tree(slim_tree)
-
-@chdir_to_root
-def clean():
-    pass

@@ -57,7 +57,7 @@ _ITEMS_TO_DESCRIPTIONS = {
 _NUM_CLASSES = 1000
 
 
-def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
+def load_batch(dataset, batch_size, height , width , is_training=False):
     data_provider = slim.dataset_data_provider.DatasetDataProvider(
         dataset,
         num_readers=64,
@@ -81,7 +81,7 @@ def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
     )
     batch_queue = slim.prefetch_queue.prefetch_queue(
         [images, labels], num_threads=16,
-        capacity=5 * batch_size)
+        capacity=5*batch_size)
     return batch_queue
 
 

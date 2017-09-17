@@ -24,20 +24,12 @@ import os
 import tensorflow as tf
 import numpy as np
 
-try:
-    from datasets import dataset_utils
-    from preprocessing import cifar_preprocessing
-except:
-    import dataset_utils
+# try:
+from datasets import dataset_utils
+from preprocessing import cifar_preprocessing
+from utils import *
 
-    os.chdir('../preprocessing')
-    import sys
-
-    sys.path.append('.')
-    import cifar_preprocessing
-    os.chdir('../datasets')
-
-slim = tf.contrib.slim
+import tensorflow.contrib.slim as slim
 
 _FILE_PATTERN = 'cifar100_%s.tfrecord'
 
@@ -95,19 +87,18 @@ fine_labels = [['apple', 'aquarium_fish', 'baby', 'bear', 'beaver'],
 fine_labels_human = np.array(fine_labels).flatten()
 
 
-def unpickle(file_path):
-    import cPickle
-    with open(file_path, 'rb') as f:
-        data = cPickle.load(f)
-    return data
 
+import os.path as osp
 
-mapping = unpickle('../../data/cifar100/mapping.pkl')
-mapping_human = unpickle('../../data/cifar100/mapping_human.pkl')
-mapp={}
+root_path = osp.join(osp.abspath(osp.dirname(__file__)), '..', '..')
+
+mapping = unpickle(root_path + '/data/cifar100/mapping.pkl')
+mapping_human = unpickle(root_path + '/data/cifar100/mapping_human.pkl')
+mapp = {}
 for cl in mapping:
     for fl in mapping[cl]:
-        mapp[str(fl)]=cl
+        mapp[str(fl)] = cl
+
 
 def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
     """Gets a dataset tuple with instructions for reading cifar10.
@@ -169,7 +160,7 @@ def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
 def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
     data_provider = slim.dataset_data_provider.DatasetDataProvider(
         dataset,
-        num_readers=64,
+        num_readers=8,
         common_queue_capacity=40 * batch_size,
         common_queue_min=20 * batch_size)
 
@@ -185,10 +176,12 @@ def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
         [image, label],
         batch_size=batch_size,
         # allow_smaller_final_batch=True,
-        num_threads=16,
-        capacity=40 * batch_size,
+        num_threads=8,
+        capacity=30 * batch_size,
     )
     batch_queue = slim.prefetch_queue.prefetch_queue(
-        [images, labels], num_threads=32,
-        capacity=40 * batch_size)
+        [images, labels], num_threads=512,
+        capacity=10 * batch_size,
+        name='prefetch/train' if is_training else 'prefetch/val'
+    )
     return batch_queue

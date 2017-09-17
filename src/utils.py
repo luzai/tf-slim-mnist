@@ -296,15 +296,17 @@ def shell(cmd, block=True):
 
 
 def ln(path, to_path):
+
     if osp.exists(to_path):
-        pass
-        # print 'error! exist ' + to_path
+        # pass
+        print 'error! exist ' + to_path
     path = osp.abspath(path)
-    cmd = "ln -sf " + path + " " + to_path
+    cmd = "ln -s " + path + " " + to_path
+    print cmd
     proc = subprocess.Popen(cmd, shell=True,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE)
-
+    return proc
 
 def tar(path, to_path=None):
     if not osp.exists(path):
@@ -552,42 +554,6 @@ def list2str(li, delimier=''):
         name += (str(name_) + delimier)
 
     return name
-
-
-def check_md5sum():
-    for parant_folder in ['stat301', 'stat101', 'stat101_10', 'stat301_10']:
-        path = '../output' + parant_folder.strip('stat') + '_all_stat'
-        # '_all_stat/resnet10_cifar100_lr_1.00e-02'
-        # print glob.glob(path+'/*')
-        tpath = glob.glob(path + '/*')[0]
-        # print tpath
-
-        path = '../' + parant_folder + '/resnet10_cifar100_lr_1.00e-02/mi*/c*'
-        file = glob.glob(path)[0]
-
-        subprocess.call(('md5sum ' + file).split())
-
-
-def merge_pdf(names):
-    from pyPdf import PdfFileWriter, PdfFileReader
-
-    # Creating a routine that appends files to the output file
-    def append_pdf(input, output):
-        [output.addPage(input.getPage(page_num)) for page_num in range(input.numPages)]
-
-    # Creating an object where pdf pages are appended to
-    output = PdfFileWriter()
-
-    # Appending two pdf-pages from two different files
-    for name in names:
-        if not osp.exists(name):
-            print(name + 'do not exist')
-        append_pdf(PdfFileReader(open(name, "rb")), output)
-
-    # Writing all the collected pages to a f  ile
-    output.write(open(
-        (osp.dirname(names[0]) + "/merged.pdf").rstrip('/')
-        , "wb"))
 
 
 def write_list(file, l):

@@ -1,40 +1,14 @@
 import tensorflow as tf
 from deployment import model_deploy
 from datasets import imagenet
-from model import load_batch
+from datasets.imagenet import load_batch
+
 # from model import resnet101_2 as resnet101
-from  model import resnet101
+from model import resnet101
 import utils, numpy as np
 import tensorflow.contrib.slim as slim
 
-flags = tf.app.flags
-FLAGS = flags.FLAGS
-flags.DEFINE_string('data_dir', '../data/imagenet10k',
-                    'Directory with data.')
-flags.DEFINE_integer('batch_size', 32,
-                     'Batch size.')
-flags.DEFINE_bool('dbg', True,
-                  'dbg')
-flags.DEFINE_integer('num_clones', 4,
-                     'num_clones')
-flags.DEFINE_string('checkpoint_path', '../models/resnet_v2_101.ckpt',
-                    'checkpoint path')
-flags.DEFINE_integer('nclasses', 10,  # todo
-                     'nclasses')
-flags.DEFINE_integer('nsteps', 10000,
-                     'nsteps')
-# if not FLAGS.dbg:
-#     flags.DEFINE_string('log_dir',
-#                         '../output/imagenet101',
-#                         'Directory with the log data.')
-# else:
-flags.DEFINE_string('log_dir',
-                    '../output/' + utils.randomword(10),
-                    'log data')
-
-beta = 0.1
-gamma = 0.1
-
+from hypers import imagenet as FLAGS
 
 def clone_fn(batch_queue):
     images, labels = batch_queue.dequeue()

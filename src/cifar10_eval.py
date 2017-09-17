@@ -1,7 +1,8 @@
 import tensorflow as tf
 
 from datasets import cifar10
-from model import resnet101, load_batch
+from model import resnet101
+from datasets.cifar10 import load_batch
 
 import tensorflow.contrib.slim as slim
 

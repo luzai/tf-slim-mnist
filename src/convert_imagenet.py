@@ -10,11 +10,11 @@ import numpy as np
 import tensorflow as tf
 import utils
 
-tf.app.flags.DEFINE_string('train_directory', '../data/imagenet22k-raw',
+tf.app.flags.DEFINE_string('train_directory', utils.root_path+'/data/imagenet22k-raw',
                            'Training data directory')
-tf.app.flags.DEFINE_string('validation_directory', '../data/imagenet22k-raw',
+tf.app.flags.DEFINE_string('validation_directory', utils.root_path+'/data/imagenet22k-raw',
                            'Validation data directory')
-tf.app.flags.DEFINE_string('output_directory', '../data/imagenet10k-hhd',
+tf.app.flags.DEFINE_string('output_directory', utils.root_path+'/data/imagenet10k-hhd',
                            'Output data directory')
 
 tf.app.flags.DEFINE_integer('train_shards', 1024,
@@ -34,7 +34,7 @@ tf.app.flags.DEFINE_integer('num_threads', 64,
 # each synset contained in the file to an integer (based on the alphabetical
 # ordering). See below for details.
 tf.app.flags.DEFINE_string('labels_file',
-                           '../data/imagenet1k.txt',
+                           utils.root_path+'/data/imagenet1k.txt',
                            'Labels file')
 
 # This file containing mapping from synset to human-readable label.
@@ -47,8 +47,7 @@ tf.app.flags.DEFINE_string('labels_file',
 # where each line corresponds to a unique mapping. Note that each line is
 # formatted as <synset>\t<human readable label>.
 tf.app.flags.DEFINE_string('imagenet_metadata_file',
-                           # '../data/imagenet_metadata.txt',
-                           '../data/words.txt',
+                           utils.root_path+'/data/words.txt',
                            'ImageNet metadata file')
 
 FLAGS = tf.app.flags.FLAGS

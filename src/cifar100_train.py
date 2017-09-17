@@ -3,26 +3,13 @@ import tensorflow as tf
 from datasets import cifar100
 from datasets.cifar100 import load_batch
 from model import resnet101, resnet50
-import utils
-import numpy as np
+import utils, numpy as np
 import tensorflow.contrib.slim as slim
 
 utils.init_dev(utils.get_dev(ok=[0, 1, 2, 3]))
+from hypers import FLAGS
 
-class DictClass(dict):
-    __getattr__, __setattr__ = dict.get, dict.__setitem__
-
-
-FLAGS = DictClass(dict(data_dir='../data/cifar100',
-                       batch_size=128,
-                       log_dir='../output/multiloss-dry3',
-                       checkpoint_path='../models/resnet50/resnet_v2_50.ckpt',
-                       multiloss=False,
-                       ))
-
-
-# flags.DEFINE_integer('num_batches', 1,
-#                      'Num of batches to train (epochs).')
+FLAGS = FLAGS.cifar100
 
 
 # def map_label(input_tensor):
@@ -87,8 +74,8 @@ def main(args):
             onehot_labels=one_hot_labels_group,
             loss_collection=None,
             weights=gamma)
-        if ind<=5:
-            tf.summary.scalar('loss/group/group'+str(ind), loss_group_)
+        if ind <= 5:
+            tf.summary.scalar('loss/group/group' + str(ind), loss_group_)
         loss_group_l.append(loss_group_)
 
     loss_group = tf.add_n(loss_group_l)
@@ -99,15 +86,19 @@ def main(args):
 
     loss_reg = tf.add_n(tf.losses.get_regularization_losses())
     total_loss = tf.losses.get_total_loss()
+    ema = tf.train.ExponentialMovingAverage(decay=0.9)
+    total_loss_avg_op = ema.apply([total_loss])
+    total_loss_avg = ema.average(total_loss)
     slim.summary.scalar('loss/total', total_loss)
+    # slim.summary.scalar('loss/total_avg', total_loss_avg)
     slim.summary.scalar('loss/loss100', loss_100)
     slim.summary.scalar('loss/reg', loss_reg)
     slim.summary.scalar('loss/loss20', loss_20)
     slim.summary.scalar('loss/group', loss_group)
 
     global_step = slim.get_or_create_global_step()
-    learning_rate = tf.train.exponential_decay(1e-1, global_step,
-                                               1000, 0.5, staircase=True)
+    learning_rate = tf.train.exponential_decay(5e-2, global_step,
+                                               4000, 0.9, staircase=True)
     slim.summary.scalar('lr', learning_rate)
     optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
 
@@ -121,6 +112,8 @@ def main(args):
         #     'resnet_v2_101/block4/.*/gamma'),
         # slim.get_variables('resnet_v2_101/logits'),
     )
+    with tf.control_dependencies([total_loss]):
+        train_op = tf.group(train_op, total_loss_avg_op)
 
     variables_to_restore = slim.get_variables_to_restore(
         exclude=[".*logits.*", ".*Ftrl.*", '.*Momentum.*', 'global_step'])
@@ -135,6 +128,7 @@ def main(args):
         print 'init from pretrained model'
         sess.run([init_assign_op, global_step_init], init_feed_dict)
         sess.run(global_step_init)
+        # threads=sess.run(batch_queue)
 
     batch_queue_val = load_batch(cifar100.get_split('test', FLAGS.data_dir), FLAGS.batch_size, is_training=False)
     images_val, labels_val = batch_queue_val.dequeue()
@@ -151,20 +145,21 @@ def main(args):
     def train_step_fn(session, *args, **kwargs):
         from tensorflow.contrib.slim.python.slim.learning import train_step
 
-        total_loss, should_stop = train_step(session, *args, **kwargs)
+        total_loss_, should_stop = train_step(session, *args, **kwargs)
+        total_loss_ = 0  # todo ref to summary rather than log
+        # if train_step_fn.step % 196 == 0:
+        #     acc_ = session.run(train_step_fn.acc)
+        #     acc_vall_ = []
+        #     for ind in range(10000 // FLAGS.batch_size + 1):
+        #         acc_vall_.append(session.run(train_step_fn.acc_val))
+        #     print acc_vall_, total_loss, acc_
+        #     print('>> Step %s - Loss: %.2f acc_val: %.2f%% acc: %.2f%%' % (
+        #         str(train_step_fn.step).rjust(6, '0'), total_loss,
+        #         np.mean(acc_vall_) * 100, acc_ * 100))
 
-        if train_step_fn.step % 196 == 0:
-            acc_ = session.run(train_step_fn.acc)
-            acc_vall_ = []
-            for ind in range(10000 // FLAGS.batch_size + 1):
-                acc_vall_.append(session.run(train_step_fn.acc_val))
-
-            print('>> Step %s - Loss: %.2f acc_val: %.2f%% acc: %.2f%%' % (
-                str(train_step_fn.step).rjust(6, '0'), total_loss,
-                np.mean(acc_vall_) * 100, acc_ * 100))
-
+        print('>> Step {}'.format(train_step_fn.step))
         train_step_fn.step += 1
-        return [total_loss, should_stop]
+        return [total_loss_, should_stop]
 
     train_step_fn.step = 0
     train_step_fn.acc_val = acc_val

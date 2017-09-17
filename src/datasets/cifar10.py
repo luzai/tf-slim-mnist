@@ -43,9 +43,9 @@ _ITEMS_TO_DESCRIPTIONS = {
 def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
     data_provider = slim.dataset_data_provider.DatasetDataProvider(
         dataset,
-        num_readers=64,
-        common_queue_capacity=20 * batch_size,
-        common_queue_min=10 * batch_size)
+        num_readers=8,
+        common_queue_capacity=40 * batch_size,
+        common_queue_min=20 * batch_size)
 
     image, label = data_provider.get(['image', 'label'])
 
@@ -59,13 +59,16 @@ def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
         [image, label],
         batch_size=batch_size,
         # allow_smaller_final_batch=True,
-        num_threads=16,
-        capacity=10 * batch_size,
+        num_threads=8,
+        capacity=30 * batch_size,
     )
     batch_queue = slim.prefetch_queue.prefetch_queue(
-        [images, labels], num_threads=16,
-        capacity=5 * batch_size)
+        [images, labels], num_threads=512,
+        capacity=10 * batch_size,
+        name='prefetch/train' if is_training else 'prefetch/val'
+    )
     return batch_queue
+
 
 def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
   """Gets a dataset tuple with instructions for reading cifar10.
