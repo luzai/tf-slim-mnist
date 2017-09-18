@@ -39,13 +39,14 @@ import tensorflow as tf
 from datasets import dataset_utils
 from tensorflow.contrib import slim
 from preprocessing import inception_preprocessing
+import hypers
 
 # TODO(nsilberman): Add tfrecord file type once the script is updated.
 _FILE_PATTERN = '%s-*'
 
 _SPLITS_TO_SIZES = {
-    'train': 1281167,
-    'validation': 50000,
+    'train': hypers.imagenet.nimgs,
+    'validation': hypers.imgnet_eval.nimgs,
 }
 
 _ITEMS_TO_DESCRIPTIONS = {
@@ -54,10 +55,10 @@ _ITEMS_TO_DESCRIPTIONS = {
     'label_text': 'The text of the label.',
 }
 
-_NUM_CLASSES = 1000
+_NUM_CLASSES = hypers.imagenet.nclasses
 
 
-def load_batch(dataset, batch_size, height , width , is_training=False):
+def load_batch(dataset, batch_size, height, width, is_training=False):
     data_provider = slim.dataset_data_provider.DatasetDataProvider(
         dataset,
         num_readers=64,
@@ -80,8 +81,8 @@ def load_batch(dataset, batch_size, height , width , is_training=False):
         capacity=10 * batch_size,
     )
     batch_queue = slim.prefetch_queue.prefetch_queue(
-        [images, labels], num_threads=16,
-        capacity=5*batch_size)
+        [images, labels], num_threads=32,
+        capacity=5 * batch_size)
     return batch_queue
 
 

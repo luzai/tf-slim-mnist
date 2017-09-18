@@ -1,4 +1,5 @@
 import tensorflow as tf
+import os
 
 from datasets import cifar100
 from datasets.cifar100 import load_batch
@@ -6,7 +7,7 @@ from model import resnet101, resnet50
 import utils, numpy as np
 import tensorflow.contrib.slim as slim
 
-utils.init_dev(utils.get_dev(ok=[0, 1, 2, 3]))
+utils.init_dev(utils.get_dev())
 from hypers import cifar100 as FLAGS
 
 
@@ -18,7 +19,7 @@ from hypers import cifar100 as FLAGS
 #     out = table.lookup(input_tensor)
 #     return out
 
-def main(args):
+def main():
     # train_op, InitAssignFn, train_step_fn = config_graph()
 
     tf.logging.set_verbosity(tf.logging.DEBUG)
@@ -35,7 +36,6 @@ def main(args):
 
     # run the image through the model
     predictions, end_points = resnet50(images, classes=100)
-    # todo add svd observation
 
     # get the cross-entropy loss
     one_hot_labels = slim.one_hot_encoding(
@@ -158,12 +158,18 @@ def main(args):
         number_of_steps=None,
         log_every_n_steps=196,
         train_step_fn=train_step_fn,
-        # trace_every_n_steps=20,
+        trace_every_n_steps=50,
     )
 
 
 if __name__ == '__main__':
     utils.rm(FLAGS.log_dir)
-    proc=utils.shell('python cifar100_eval.py', block=False)
-    # print proc.communicate()[-1]
-    tf.app.run()
+    import multiprocessing as mp
+    import cifar100_eval
+
+    os.environ['LD_LIBRARY_PATH'] = '/usr/local/cuda/extras/CUPTI/lib64:' + os.environ['LD_LIBRARY_PATH']
+    proc = mp.Process(target=cifar100_eval.main, args=())
+    proc.start()
+
+    main()
+

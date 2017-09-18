@@ -1,21 +1,21 @@
 import tensorflow as tf
 import tensorflow.contrib
-from datasets import cifar100
+from datasets import imagenet
 from model import resnet101, resnet50
-from datasets.cifar100 import load_batch
+from datasets.imagenet import load_batch
 
 import tensorflow.contrib.slim as slim
 from dynamics import svd
 import utils, numpy as np
 
 utils.init_dev(utils.get_dev())
-from hypers import cifar100_eval as FLAGS
+from hypers import imgnet_eval as FLAGS
 
 
 def main():
     utils.mkdir_p(FLAGS.log_dir, delete=True)
     # load the dataset
-    dataset = cifar100.get_split('test', FLAGS.data_dir, )
+    dataset = imagenet.get_split('test', FLAGS.data_dir, )
 
     # load batch
     batch_queue = load_batch(
@@ -149,7 +149,8 @@ def main():
             write_single_val(act_stat.orthochnl(np.stack(self.fc_in_t, axis=0)), self.step, 'fcin/ortho', writer)
             write_single_val(act_stat.orthochnlabs(np.stack(self.fc_in_t, axis=0)), self.step, 'fcin/ortho/abs', writer)
             write_single_val(act_stat.orthochnl(np.stack(self.logits_t, axis=0)), self.step, 'logits/ortho', writer)
-            write_single_val(act_stat.orthochnlabs(np.stack(self.logits_t, axis=0)), self.step, 'logits/ortho/abs', writer)
+            write_single_val(act_stat.orthochnlabs(np.stack(self.logits_t, axis=0)), self.step, 'logits/ortho/abs',
+                             writer)
 
             # print('Done with the session.')
 

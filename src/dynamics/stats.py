@@ -1,6 +1,8 @@
 from __future__ import division
 import numpy as np, Queue, pandas as pd
-from logs import logger
+import tensorflow as tf
+
+logger = tf.logging
 import utils
 import math
 
@@ -45,7 +47,15 @@ class Stat(object):
     #   if iter in self.log_pnt and self.log_pnt.loc[iter] == 3:
     #     return self.diff_inst.diff(tensor, iter, name)
 
+    def zerofrac(self, tensor, **kwargs):
+        tensor = tensor.flatten()
+        # todo equal or is close
+        print 'isclose,euqal', np.isclose(tensor, np.zeros_like(tensor, dtype=tensor.dtype)).astype(np.int64).sum() / float(
+            tensor.shape[0]),  np.equal(tensor, np.zeros_like(tensor, dtype=tensor.dtype)).astype(np.int64).sum() / float(
+            tensor.shape[0])
 
+        return np.isclose(tensor, np.zeros_like(tensor, dtype=tensor.dtype)).astype(np.int64).sum() / float(
+            tensor.shape[0])
 
     def stdtime(self, tensor, name=None, iter=None, how='mean'):
         if iter in self.log_pnt and self.log_pnt.loc[iter] == 3 or how == 'tensor':
@@ -151,14 +161,15 @@ class Stat(object):
 
 
 class KernelStat(Stat):
-    def __init__(self, max_win_size, log_pnt):
-        super(KernelStat, self).__init__(max_win_size=max_win_size, log_pnt=log_pnt)
-        _stat = dict(KernelStat.__dict__)
-        for key in _stat.keys():
-            if '_' in key:
-                del _stat[key]
-        self.stat = utils.dict_concat([self.stat, _stat])
-        self.totvar_inst = TotVar(self.window)
+    def __init__(self, max_win_size=None, log_pnt=None):
+        if max_win_size is not None:
+            super(KernelStat, self).__init__(max_win_size=max_win_size, log_pnt=log_pnt)
+            _stat = dict(KernelStat.__dict__)
+            for key in _stat.keys():
+                if '_' in key:
+                    del _stat[key]
+            self.stat = utils.dict_concat([self.stat, _stat])
+            self.totvar_inst = TotVar(self.window)
 
     def updateratio(self, tensor, name=None, iter=None):
         if iter in self.log_pnt and self.log_pnt.loc[iter] == 3:
@@ -205,14 +216,15 @@ class BiasStat(Stat):
 
 
 class ActStat(Stat):
-    def __init__(self, max_win_size, log_pnt):
-        super(ActStat, self).__init__(max_win_size=max_win_size, log_pnt=log_pnt)
-        _stat = dict(ActStat.__dict__)
-        for key in _stat.keys():
-            if '_' in key:
-                del _stat[key]
-        self.stat = utils.dict_concat([self.stat, _stat])
-        self.ptrate_inst = PTRate(self.window)
+    def __init__(self, max_win_size=None, log_pnt=None):
+        if max_win_size is not None:
+            super(ActStat, self).__init__(max_win_size=max_win_size, log_pnt=log_pnt)
+            _stat = dict(ActStat.__dict__)
+            for key in _stat.keys():
+                if '_' in key:
+                    del _stat[key]
+            self.stat = utils.dict_concat([self.stat, _stat])
+            self.ptrate_inst = PTRate(self.window)
 
     def sparsity(self, tensor, **kwargs):
         tensor = tensor.flatten()

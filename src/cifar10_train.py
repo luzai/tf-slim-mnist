@@ -5,11 +5,11 @@ from model import resnet101
 from datasets.cifar10 import load_batch
 import utils, numpy as np
 
-from hypers import cifar10  as FLAGS
+from hypers import cifar10 as FLAGS
 
 import tensorflow.contrib.slim as slim
 
-utils.init_dev(utils.get_dev(ok=[0, 1]))
+utils.init_dev(utils.get_dev())
 
 
 def main(args):
@@ -107,6 +107,10 @@ def main(args):
 
 if __name__ == '__main__':
     utils.rm(FLAGS.log_dir)
-    # utils.rm(FLAGS.log_dir + '_eval')
-    proc = utils.shell('python cifar10_eval.py', block=False)
+    import multiprocessing as mp
+    import cifar10_eval
+
+    proc = mp.Process(target=cifar10_eval.main, args=())
+    proc.start()
+    # proc = utils.shell('python cifar10_eval.py', block=False)
     tf.app.run()

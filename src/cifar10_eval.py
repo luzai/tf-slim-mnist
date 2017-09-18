@@ -12,7 +12,9 @@ utils.init_dev(utils.get_dev())
 from hypers import cifar10_eval as FLAGS
 
 
-def main(args):
+def main():
+    utils.rm(FLAGS.log_dir)
+
     # load the dataset
     dataset = cifar10.get_split('test', FLAGS.data_dir, )
 
@@ -47,7 +49,7 @@ def main(args):
 
     # write the metrics as summaries
     for metric_name, metric_value in metrics_to_values.iteritems():
-        tf.summary.scalar(metric_name+'/values', metric_value)
+        tf.summary.scalar(metric_name + '/values', metric_value)
     # for metric_name, metric_value in metrics_to_updates.iteritems():
     #     tf.summary.scalar(metric_name+'/update', metric_value)
 
@@ -67,5 +69,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    utils.rm(FLAGS.log_dir)
-    tf.app.run()
+    main()

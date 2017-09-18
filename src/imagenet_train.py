@@ -113,8 +113,8 @@ def main(args):
         with tf.device(deploy_config.optimizer_device()):
             global_step = slim.get_or_create_global_step()
             learning_rate = tf.train.exponential_decay(
-                1e-1, global_step,
-                1000, 0.5, staircase=True)
+                0.001, global_step,
+                100000, 0.1, staircase=True)
             slim.summary.scalar('lr', learning_rate)
 
             optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
@@ -144,7 +144,7 @@ def main(args):
             train_step_fn=train_step_fn,
             summary_op=summary_op,
             number_of_steps=FLAGS.nsteps,
-            save_interval_secs=1200,
+            save_interval_secs=300,
             save_summaries_secs=300,
             log_every_n_steps=20,
             # trace_every_n_steps=20,
