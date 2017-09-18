@@ -58,7 +58,7 @@ _ITEMS_TO_DESCRIPTIONS = {
 _NUM_CLASSES = hypers.imagenet.nclasses
 
 
-def load_batch(dataset, batch_size, height, width, is_training=False):
+def load_batch(dataset, batch_size, height=256, width=256, is_training=False):
     data_provider = slim.dataset_data_provider.DatasetDataProvider(
         dataset,
         num_readers=64,

@@ -24,73 +24,29 @@ The script should take several minutes to run.
 """
 
 from __future__ import division
+from __future__ import absolute_import
 
 import os
 import sys
 import tarfile
-
+import utils
 import numpy as np
-from six.moves import cPickle
-from six.moves import urllib
+from six.moves import cPickle, urllib
 import tensorflow as tf
 
-# from datasets import dataset_utils
-import dataset_utils
+from datasets import dataset_utils
+from datasets.cifar100 import coarse_labels_human, fine_labels_human
+from datasets import cifar100
+from utils import root_path
 
 FLAGS = tf.app.flags.FLAGS
-tf.app.flags.DEFINE_string('dataset_dir', '/tmp/cifar100', 'cifar10 data dir')
+tf.app.flags.DEFINE_string('dataset_dir', root_path + '/data/cifar100', 'cifar100 data dir')
 
 # The URL where the CIFAR data can be downloaded.
 _DATA_URL = 'http://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz'
 
 # The height and width of each image.
 _IMAGE_SIZE = 32
-
-# The names of the classes.
-
-coarse_labels = ['aquatic_mammals',
-                 'fish',
-                 'flowers',
-                 'food_containers',
-                 'fruit_and_vegetables',
-                 'household_electrical_devices',
-                 'household_furniture',
-                 'insects',
-                 'large_carnivores',
-                 'large_man-made_outdoor_things',
-                 'large_natural_outdoor_scenes',
-                 'large_omnivores_and_herbivores',
-                 'medium_mammals',
-                 'non-insect_invertebrates',
-                 'people',
-                 'reptiles',
-                 'small_mammals',
-                 'trees',
-                 'vehicles_1',
-                 'vehicles_2']
-coarse_labels_human = np.array(coarse_labels)
-fine_labels = [['apple', 'aquarium_fish', 'baby', 'bear', 'beaver'],
-               ['bed', 'bee', 'beetle', 'bicycle', 'bottle'],
-               ['bowl', 'boy', 'bridge', 'bus', 'butterfly'],
-               ['camel', 'can', 'castle', 'caterpillar', 'cattle'],
-               ['chair', 'chimpanzee', 'clock', 'cloud', 'cockroach'],
-               ['couch', 'crab', 'crocodile', 'cup', 'dinosaur'],
-               ['dolphin', 'elephant', 'flatfish', 'forest', 'fox'],
-               ['girl', 'hamster', 'house', 'kangaroo', 'keyboard'],
-               ['lamp', 'lawn_mower', 'leopard', 'lion', 'lizard'],
-               ['lobster', 'man', 'maple_tree', 'motorcycle', 'mountain'],
-               ['mouse', 'mushroom', 'oak_tree', 'orange', 'orchid'],
-               ['otter', 'palm_tree', 'pear', 'pickup_truck', 'pine_tree'],
-               ['plain', 'plate', 'poppy', 'porcupine', 'possum'],
-               ['rabbit', 'raccoon', 'ray', 'road', 'rocket'],
-               ['rose', 'sea', 'seal', 'shark', 'shrew'],
-               ['skunk', 'skyscraper', 'snail', 'snake', 'spider'],
-               ['squirrel', 'streetcar', 'sunflower', 'sweet_pepper', 'table'],
-               ['tank', 'telephone', 'television', 'tiger', 'tractor'],
-               ['train', 'trout', 'tulip', 'turtle', 'wardrobe'],
-               ['whale', 'willow_tree', 'wolf', 'woman', 'worm']]
-
-fine_labels_human = np.array(fine_labels).flatten()
 
 
 def _add_to_tfrecord(filename, tfrecord_writer, offset=0):
@@ -116,45 +72,45 @@ def _add_to_tfrecord(filename, tfrecord_writer, offset=0):
     images = images.reshape((num_images, 3, 32, 32))
     labels = data[b'fine_labels']
     coarse_labels = data[b'coarse_labels']
-    from cifar100 import mapp
-    labels = [mapp[l] for l in labels]
-    mapping = {}
-    mapping_human = {}
 
-    for label, cl in zip(labels, coarse_labels):
-        if cl not in mapping:
-            mapping[cl] = {label}
-            mapping_human[coarse_labels_human[cl]] = {fine_labels_human[label]}
+    c2f_map = {}
+    for lb, cl in zip(labels, coarse_labels):
+        if cl not in c2f_map:
+            c2f_map[cl] = {lb}
         else:
-            mapping[cl].add(label)
-            mapping_human[coarse_labels_human[cl]].add(fine_labels_human[label])
+            c2f_map[cl].add(lb)
+
+    utils.pickle(c2f_map, utils.root_path + '/data/cifar100/c2f_map.pkl')
+    b2a_map = {}
+    ind = 0
+    for c, fs in c2f_map.items():
+        for f in fs:
+            b2a_map[f] = ind
+            ind += 1
+    utils.pickle(b2a_map, utils.root_path + '/data/cifar100/b2a_map.pkl')
+    a2b_map = {a: b for b, a in b2a_map.items()}
+
+    labels = [b2a_map[lb] for lb in labels]
 
     with tf.Graph().as_default():
         image_placeholder = tf.placeholder(dtype=tf.uint8)
         encoded_image = tf.image.encode_png(image_placeholder)
 
-        with tf.Session('') as sess:
+        with tf.Session() as sess:
             for j in range(num_images):
                 sys.stdout.write('\r>> Reading file [%s] image %d/%d' % (
                     filename, offset + j + 1, offset + num_images))
                 sys.stdout.flush()
 
                 image = np.squeeze(images[j]).transpose((1, 2, 0))
-                label = labels[j]
+                lb = labels[j]
 
                 png_string = sess.run(encoded_image,
                                       feed_dict={image_placeholder: image})
 
                 example = dataset_utils.image_to_tfexample(
-                    png_string, b'png', _IMAGE_SIZE, _IMAGE_SIZE, label)
+                    png_string, b'png', _IMAGE_SIZE, _IMAGE_SIZE, lb)
                 tfrecord_writer.write(example.SerializeToString())
-
-    def pickle(data, file_path):
-        with open(file_path, 'wb') as f:
-            cPickle.dump(data, f, cPickle.HIGHEST_PROTOCOL)
-
-    # pickle(mapping, '/tmp/cifar100/mapping.pkl')
-    # pickle(mapping_human, '/tmp/cifar100/mapping_human.pkl')
 
     return offset + num_images
 
@@ -223,13 +179,13 @@ def run(args):
 
     # Finally, write the labels file:
     labels_to_class_names = dict(zip(range(len(fine_labels_human)), fine_labels_human))
-    dataset_utils.write_label_file(labels_to_class_names, dataset_dir)
+    # dataset_utils.write_label_file(labels_to_class_names, dataset_dir)
 
     labels_to_class_names = dict(zip(range(len(coarse_labels_human)), coarse_labels_human))
-    dataset_utils.write_label_file(labels_to_class_names, dataset_dir, filename='labels-coarse.txt')
+    # dataset_utils.write_label_file(labels_to_class_names, dataset_dir, filename='labels-coarse.txt')
 
     # _clean_up_temporary_files(dataset_dir)
-    print('\nFinished converting the Cifar10 dataset!')
+    print('\nFinished converting the Cifar100 dataset!')
 
 
 if __name__ == '__main__':

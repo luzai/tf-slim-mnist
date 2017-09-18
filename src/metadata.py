@@ -26,8 +26,10 @@ def _read_list(file):
 
 
 imagenet10k = _read_list(root_path + '/data/imagenet10k.txt')
+imagenet22k = _read_list(root_path + '/data/imagenet22k.txt')
 imagenet7k = _read_list(root_path + '/data/imagenet7k.txt')
 imagenet1k = _read_list(root_path + '/data/imagenet1k.txt')
+imagenet600 = _read_list(root_path + '/data/imagenet600.txt')
 
 import easydict
 

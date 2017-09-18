@@ -261,8 +261,13 @@ def inputs(eval_data, data_dir, batch_size):
 
 
 def train_process(image, height, width):
+
     tf.summary.image('input/raw', tf.expand_dims(image, 0))
-    distorted_image = tf.random_crop(image, [height, width, 3])
+    sel = tf.random_uniform([], minval=1, maxval=1.3)
+    distorted_image = tf.image.resize_images(
+        image, (tf.to_int32(height * sel), tf.to_int32(width * sel)))
+    tf.summary.image('input/randomresize', tf.expand_dims(distorted_image, 0))
+    distorted_image = tf.random_crop(distorted_image, [height, width, 3])
 
     # Randomly flip the image horizontally.
     distorted_image = tf.image.random_flip_left_right(distorted_image)

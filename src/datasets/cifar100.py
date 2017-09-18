@@ -23,11 +23,12 @@ from __future__ import division
 import os
 import tensorflow as tf
 import numpy as np
+from utils import root_path
+from utils import *
 
 # try:
 from datasets import dataset_utils
 from preprocessing import cifar_preprocessing
-from utils import *
 
 import tensorflow.contrib.slim as slim
 
@@ -42,63 +43,51 @@ _ITEMS_TO_DESCRIPTIONS = {
     'label': 'A single integer between 0 and 99',
 }
 
-coarse_labels = ['aquatic_mammals',
-                 'fish',
-                 'flowers',
-                 'food_containers',
-                 'fruit_and_vegetables',
-                 'household_electrical_devices',
-                 'household_furniture',
-                 'insects',
-                 'large_carnivores',
-                 'large_man-made_outdoor_things',
-                 'large_natural_outdoor_scenes',
-                 'large_omnivores_and_herbivores',
-                 'medium_mammals',
-                 'non-insect_invertebrates',
-                 'people',
-                 'reptiles',
-                 'small_mammals',
-                 'trees',
-                 'vehicles_1',
-                 'vehicles_2']
-coarse_labels_human = np.array(coarse_labels)
-fine_labels = [['apple', 'aquarium_fish', 'baby', 'bear', 'beaver'],
-               ['bed', 'bee', 'beetle', 'bicycle', 'bottle'],
-               ['bowl', 'boy', 'bridge', 'bus', 'butterfly'],
-               ['camel', 'can', 'castle', 'caterpillar', 'cattle'],
-               ['chair', 'chimpanzee', 'clock', 'cloud', 'cockroach'],
-               ['couch', 'crab', 'crocodile', 'cup', 'dinosaur'],
-               ['dolphin', 'elephant', 'flatfish', 'forest', 'fox'],
-               ['girl', 'hamster', 'house', 'kangaroo', 'keyboard'],
-               ['lamp', 'lawn_mower', 'leopard', 'lion', 'lizard'],
-               ['lobster', 'man', 'maple_tree', 'motorcycle', 'mountain'],
-               ['mouse', 'mushroom', 'oak_tree', 'orange', 'orchid'],
-               ['otter', 'palm_tree', 'pear', 'pickup_truck', 'pine_tree'],
-               ['plain', 'plate', 'poppy', 'porcupine', 'possum'],
-               ['rabbit', 'raccoon', 'ray', 'road', 'rocket'],
-               ['rose', 'sea', 'seal', 'shark', 'shrew'],
-               ['skunk', 'skyscraper', 'snail', 'snake', 'spider'],
-               ['squirrel', 'streetcar', 'sunflower', 'sweet_pepper', 'table'],
-               ['tank', 'telephone', 'television', 'tiger', 'tractor'],
-               ['train', 'trout', 'tulip', 'turtle', 'wardrobe'],
-               ['whale', 'willow_tree', 'wolf', 'woman', 'worm']]
+coarse_labels_human = np.array(['aquatic_mammals',
+                                'fish',
+                                'flowers',
+                                'food_containers',
+                                'fruit_and_vegetables',
+                                'household_electrical_devices',
+                                'household_furniture',
+                                'insects',
+                                'large_carnivores',
+                                'large_man-made_outdoor_things',
+                                'large_natural_outdoor_scenes',
+                                'large_omnivores_and_herbivores',
+                                'medium_mammals',
+                                'non-insect_invertebrates',
+                                'people',
+                                'reptiles',
+                                'small_mammals',
+                                'trees',
+                                'vehicles_1',
+                                'vehicles_2'])
 
-fine_labels_human = np.array(fine_labels).flatten()
+fine_labels_human = np.array([['apple', 'aquarium_fish', 'baby', 'bear', 'beaver'],
+                              ['bed', 'bee', 'beetle', 'bicycle', 'bottle'],
+                              ['bowl', 'boy', 'bridge', 'bus', 'butterfly'],
+                              ['camel', 'can', 'castle', 'caterpillar', 'cattle'],
+                              ['chair', 'chimpanzee', 'clock', 'cloud', 'cockroach'],
+                              ['couch', 'crab', 'crocodile', 'cup', 'dinosaur'],
+                              ['dolphin', 'elephant', 'flatfish', 'forest', 'fox'],
+                              ['girl', 'hamster', 'house', 'kangaroo', 'keyboard'],
+                              ['lamp', 'lawn_mower', 'leopard', 'lion', 'lizard'],
+                              ['lobster', 'man', 'maple_tree', 'motorcycle', 'mountain'],
+                              ['mouse', 'mushroom', 'oak_tree', 'orange', 'orchid'],
+                              ['otter', 'palm_tree', 'pear', 'pickup_truck', 'pine_tree'],
+                              ['plain', 'plate', 'poppy', 'porcupine', 'possum'],
+                              ['rabbit', 'raccoon', 'ray', 'road', 'rocket'],
+                              ['rose', 'sea', 'seal', 'shark', 'shrew'],
+                              ['skunk', 'skyscraper', 'snail', 'snake', 'spider'],
+                              ['squirrel', 'streetcar', 'sunflower', 'sweet_pepper', 'table'],
+                              ['tank', 'telephone', 'television', 'tiger', 'tractor'],
+                              ['train', 'trout', 'tulip', 'turtle', 'wardrobe'],
+                              ['whale', 'willow_tree', 'wolf', 'woman', 'worm']]).flatten()
 
-
-
-import os.path as osp
-
-root_path = osp.join(osp.abspath(osp.dirname(__file__)), '..', '..')
-
-mapping = unpickle(root_path + '/data/cifar100/mapping.pkl')
-mapping_human = unpickle(root_path + '/data/cifar100/mapping_human.pkl')
-mapp = {}
-for cl in mapping:
-    for fl in mapping[cl]:
-        mapp[str(fl)] = cl
-
+b2a_map = unpickle(root_path+'/data/cifar100/b2a_map.pkl')
+c2f_map = unpickle(root_path+'/data/cifar100/c2f_map.pkl')
+a2b_map = {a:b for b,a in b2a_map.items()}
 
 def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
     """Gets a dataset tuple with instructions for reading cifar10.
@@ -160,9 +149,9 @@ def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
 def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
     data_provider = slim.dataset_data_provider.DatasetDataProvider(
         dataset,
-        num_readers=8,
+        num_readers=16,
         common_queue_capacity=40 * batch_size,
-        common_queue_min=20 * batch_size)
+        common_queue_min=30 * batch_size)
 
     image, label = data_provider.get(['image', 'label'])
 
@@ -176,11 +165,11 @@ def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
         [image, label],
         batch_size=batch_size,
         # allow_smaller_final_batch=True,
-        num_threads=8,
+        num_threads=256,
         capacity=30 * batch_size,
     )
     batch_queue = slim.prefetch_queue.prefetch_queue(
-        [images, labels], num_threads=512,
+        [images, labels], num_threads=256,
         capacity=10 * batch_size,
         name='prefetch/train' if is_training else 'prefetch/val'
     )

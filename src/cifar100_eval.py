@@ -48,9 +48,9 @@ def main():
         onehot_labels=one_hot_labels)
 
     # labels_coarse = map_label(labels)
-    labels_coarse = tf.to_int64(labels // 5)
+    labels_coarse = tf.to_int64(tf.floordiv(labels, 5))
     one_hot_labels_coarse = slim.one_hot_encoding(labels_coarse, 20)
-
+    predictions += tf.constant(1e-6, tf.float32)
     predictions_reshape = tf.reshape(tf.nn.softmax(predictions), (-1, 20, 5))
     loss_20 = tf.losses.log_loss(
         predictions=tf.reduce_sum(predictions_reshape, axis=-1),
@@ -85,7 +85,8 @@ def main():
     loss_reg = tf.add_n(tf.losses.get_regularization_losses())
 
     total_loss = tf.losses.get_total_loss()
-    # tf.summary.scalar('loss/val/ori', total_loss)
+
+    tf.summary.scalar('loss/20/',loss_20)
 
     # streaming metrics to evaluate
     predictions = tf.to_int64(tf.argmax(predictions, 1))
@@ -97,7 +98,7 @@ def main():
             'loss/100/val': slim.metrics.streaming_mean(loss_100),
             'loss/20/val': slim.metrics.streaming_mean(loss_20),
             'loss/reg/val': slim.metrics.streaming_mean(loss_reg),
-            'loss/group/total/train': slim.metrics.streaming_mean(loss_group)
+            'loss/group/ttl/val': slim.metrics.streaming_mean(loss_group)
         }, metric_map]))
 
     # write the metrics as summaries
@@ -105,7 +106,7 @@ def main():
         tf.summary.scalar(metric_name + '/values', metric_value)
 
     global writer
-    writer = tf.summary.FileWriter(FLAGS.log_dir)
+    writer = tf.summary.FileWriter(FLAGS.log_dir + '/custom')
 
     class ExampleHook(tf.train.SessionRunHook):
 
@@ -149,7 +150,8 @@ def main():
             write_single_val(act_stat.orthochnl(np.stack(self.fc_in_t, axis=0)), self.step, 'fcin/ortho', writer)
             write_single_val(act_stat.orthochnlabs(np.stack(self.fc_in_t, axis=0)), self.step, 'fcin/ortho/abs', writer)
             write_single_val(act_stat.orthochnl(np.stack(self.logits_t, axis=0)), self.step, 'logits/ortho', writer)
-            write_single_val(act_stat.orthochnlabs(np.stack(self.logits_t, axis=0)), self.step, 'logits/ortho/abs', writer)
+            write_single_val(act_stat.orthochnlabs(np.stack(self.logits_t, axis=0)), self.step, 'logits/ortho/abs',
+                             writer)
 
             # print('Done with the session.')
 
@@ -172,8 +174,7 @@ def main():
                    feed_dict=None)]
     )
 
-    # for metric, value in zip(metrics_to_values.keys(), metric_values):
-    #     tf.logging.info('Metric %s has value: %f', metric, value)
+    #
 
 
 def write_single_val(value, epoch_iter, name, writer):

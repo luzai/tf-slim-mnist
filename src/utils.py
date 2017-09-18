@@ -44,6 +44,13 @@ def init_dev(n=(0,)):
     # os.environ['PYTHONWARNINGS'] = "ignore"
 
 
+def allow_growth_config():
+    import tensorflow as tf
+    _sess_config = tf.ConfigProto(allow_soft_placement=True)
+    _sess_config.gpu_options.allow_growth = True
+    return _sess_config
+
+
 def allow_growth():
     import tensorflow as tf
     tf_graph = tf.get_default_graph()
@@ -52,15 +59,6 @@ def allow_growth():
     sess = tf.Session(config=_sess_config, graph=tf_graph)
     import keras.backend as K
     K.set_session(sess)
-
-
-def get_session():
-    import tensorflow as tf
-    init_dev(get_dev())
-    tf_graph = tf.get_default_graph()
-    _sess_config = tf.ConfigProto(allow_soft_placement=True)
-    _sess_config.gpu_options.allow_growth = True
-    sess = tf.Session(config=_sess_config, graph=tf_graph)
     return sess
 
 
@@ -470,18 +468,6 @@ def vis_nx(graph, name='default', show=False):
         print ' nx plot success', path
     except Exception as inst:
         print 'error', inst
-
-
-@chdir_to_root
-def get_config(key):
-    import sys
-    sys.path.append(root_path)
-    from hypers import hyper
-    sys.path.pop()
-    if key in hyper:
-        return hyper[key]
-    else:
-        return hyper[hyper['use']][key]
 
 
 @chdir_to_root

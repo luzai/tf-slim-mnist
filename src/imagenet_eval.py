@@ -1,5 +1,5 @@
 import tensorflow as tf
-import tensorflow.contrib
+
 from datasets import imagenet
 from model import resnet101, resnet50
 from datasets.imagenet import load_batch
@@ -7,15 +7,14 @@ from datasets.imagenet import load_batch
 import tensorflow.contrib.slim as slim
 from dynamics import svd
 import utils, numpy as np
-
-utils.init_dev(utils.get_dev())
 from hypers import imgnet_eval as FLAGS
 
 
 def main():
+    utils.init_dev(utils.get_dev())
     utils.mkdir_p(FLAGS.log_dir, delete=True)
     # load the dataset
-    dataset = imagenet.get_split('test', FLAGS.data_dir, )
+    dataset = imagenet.get_split('validation', FLAGS.data_dir, )
 
     # load batch
     batch_queue = load_batch(
@@ -24,7 +23,7 @@ def main():
         is_training=False)
     images, labels = batch_queue.dequeue()
     # get the model prediction
-    predictions, end_points = resnet50(images, classes=100)
+    predictions, end_points = resnet101(images, classes=FLAGS.nclasses)
     global logits, fc_in, fc_weight
     fc_weight = tf.squeeze(slim.get_variables('.*/logits/weights')[0], name='dynamic/weight')
     tf.summary.histogram('weight/single_val', svd.Svd(fc_weight)[0])
@@ -32,13 +31,14 @@ def main():
     tf.summary.histogram('weight/sparsity/hist', fc_weight)
     # todo ortho use t-sne
 
-    fc_in = tf.squeeze(end_points['resnet_v2_50/block4'], name='dynamic/fc_in')
-    logits = tf.squeeze(end_points['resnet_v2_50/logits'], name='dynamic/logits')
+    fc_in = tf.squeeze(end_points['resnet_v2_101/block4'], name='dynamic/fc_in')
+    logits = tf.squeeze(end_points['resnet_v2_101/logits'], name='dynamic/logits')
 
     # convert prediction values for each class into single class prediction
     one_hot_labels = slim.one_hot_encoding(
         labels,
         dataset.num_classes)
+    assert dataset.num_classes == FLAGS.nclasses, 'classes equal'
     tf.losses.softmax_cross_entropy(
         logits=predictions,
         onehot_labels=one_hot_labels)
@@ -47,67 +47,30 @@ def main():
         logits=predictions,
         onehot_labels=one_hot_labels)
 
-    # labels_coarse = map_label(labels)
-    labels_coarse = tf.to_int64(labels // 5)
-    one_hot_labels_coarse = slim.one_hot_encoding(labels_coarse, 20)
-
-    predictions_reshape = tf.reshape(tf.nn.softmax(predictions), (-1, 20, 5))
-    loss_20 = tf.losses.log_loss(
-        predictions=tf.reduce_sum(predictions_reshape, axis=-1),
-        labels=one_hot_labels_coarse, weights=FLAGS.beta
-        , loss_collection=None if not FLAGS.multi_loss else tf.GraphKeys.LOSSES
-    )
-
-    loss_group_l = []
-    metric_map = {}
-    for ind in range(20):
-        predictions_ = tf.reshape(predictions, (-1, 20, 5))
-        bs = tf.shape(predictions_, out_type=tf.int64)[0]
-        sel = tf.stack([tf.range(bs, dtype=tf.int64), labels // 5], axis=1)
-        predictions_ = tf.gather_nd(predictions_, sel)
-
-        one_hot_labels_group = slim.one_hot_encoding(tf.mod(labels, 5), 5)
-        loss_group_ = tf.losses.softmax_cross_entropy(
-            logits=predictions_,
-            onehot_labels=one_hot_labels_group,
-            loss_collection=None,
-            weights=FLAGS.gamma)
-        if ind <= 5:
-            metric_map['loss/group/group{}/val'.format(ind)] = slim.metrics.streaming_mean(loss_group_)
-        loss_group_l.append(loss_group_)
-
-    loss_group = tf.add_n(loss_group_l)
-    if FLAGS.multi_loss:
-        tf.losses.add_loss(loss_group)
-
-    print '>> loss', tf.losses.get_losses(), len(tf.losses.get_losses())
-
     loss_reg = tf.add_n(tf.losses.get_regularization_losses())
 
     total_loss = tf.losses.get_total_loss()
-    # tf.summary.scalar('loss/val/ori', total_loss)
 
     # streaming metrics to evaluate
     predictions = tf.to_int64(tf.argmax(predictions, 1))
     metrics_to_values, metrics_to_updates = slim.metrics.aggregate_metric_map(
-        utils.dict_concat([{
-            # 'mse/val': slim.metrics.streaming_mean_squared_error(predictions, labels),
+        {
             'acc/val': slim.metrics.streaming_accuracy(predictions, labels),
             'loss/ttl/val': slim.metrics.streaming_mean(total_loss),
             'loss/100/val': slim.metrics.streaming_mean(loss_100),
-            'loss/20/val': slim.metrics.streaming_mean(loss_20),
-            'loss/reg/val': slim.metrics.streaming_mean(loss_reg),
-            'loss/group/total/train': slim.metrics.streaming_mean(loss_group)
-        }, metric_map]))
+            'loss/reg/val': slim.metrics.streaming_mean(loss_reg), }
+    )
 
     # write the metrics as summaries
     for metric_name, metric_value in metrics_to_values.iteritems():
         tf.summary.scalar(metric_name + '/values', metric_value)
 
     global writer
-    writer = tf.summary.FileWriter(FLAGS.log_dir)
+    writer = tf.summary.FileWriter(FLAGS.log_dir + '/custom')
 
     class ExampleHook(tf.train.SessionRunHook):
+        def __init__(self):
+            self.summary_times = 0
 
         # self.fc_in, self.fc_weight, self.logits = fc_in, fc_weight, logits
         # self.fc_in_t,self.fc_weight_t,self.logits_t=[],[],[]
@@ -131,11 +94,16 @@ def main():
             # print('Done running one step. The value of my tensor')
             if self.fc_weight_t is None:
                 self.fc_weight_t = run_values.results[1]
+
+            if self.step is None:
+                self.step = run_values.results[3]
+
             if len(self.fc_in_t) <= 3500 // FLAGS.batch_size:
                 self.fc_in_t.append(run_values.results[0])
                 self.logits_t.append(run_values.results[2])
-
-            self.step = run_values.results[3]
+            elif not self.summary_times % 100: # I gusee evaluation size is not sensitive # todo verify labels are consisten across multi evaluation
+                run_context.request_stop()
+            self.summary_times += 1
 
         def end(self, session):
             from dynamics.stats import ActStat, KernelStat
@@ -166,15 +134,13 @@ def main():
         session_config=_sess_config,
         eval_interval_secs=FLAGS.eval_interval_secs,
         hooks=[ExampleHook(),
-               tf.contrib.training.SummaryAtEndHook(
-                   log_dir=FLAGS.log_dir,
-                   summary_writer=writer,
-                   summary_op=None,
-                   feed_dict=None)]
+               # tf.contrib.training.SummaryAtEndHook(
+               #     log_dir=FLAGS.log_dir,
+               #     summary_writer=writer,
+               #     summary_op=None,
+               #     feed_dict=None)
+               ]
     )
-
-    # for metric, value in zip(metrics_to_values.keys(), metric_values):
-    #     tf.logging.info('Metric %s has value: %f', metric, value)
 
 
 def write_single_val(value, epoch_iter, name, writer):

@@ -10,9 +10,10 @@ import tensorflow.contrib.slim as slim
 
 from hypers import imagenet as FLAGS
 
+
 def clone_fn(batch_queue):
     images, labels = batch_queue.dequeue()
-    tf.summary.image('inputs', images)
+    tf.summary.image('input/img', images)
     predictions, end_points = resnet101(images, classes=FLAGS.nclasses)
 
     one_hot_labels = slim.one_hot_encoding(
@@ -24,19 +25,23 @@ def clone_fn(batch_queue):
         logits=predictions,
         onehot_labels=one_hot_labels)
 
-    # tf.losses.add_loss(loss_100)
-
     loss_reg = tf.reduce_sum(tf.losses.get_regularization_losses())
 
     tf.logging.info('loss are {}'.format(tf.losses.get_losses()))
 
     total_loss = tf.losses.get_total_loss()
-    # todo many be add summaries afterwards
-    slim.summary.scalar('loss/total', total_loss)
-    slim.summary.scalar('loss/loss100', loss_100)
-    slim.summary.scalar('loss/loss_reg', loss_reg)
 
-    return end_points
+    # todo many be add summaries afterwards
+    tf.summary.scalar('loss/ttl/train', total_loss)
+    tf.summary.scalar('loss/100/train', loss_100)
+    tf.summary.scalar('loss/reg/train', loss_reg)
+
+    acc = slim.metrics.accuracy(
+        predictions=tf.to_int64(tf.argmax(predictions, 1)),
+        labels=labels
+    )
+
+    return end_points, [total_loss, loss_100, loss_reg, acc]
 
 
 def get_init_fn():
@@ -53,27 +58,18 @@ def train_step_fn(session, *args, **kwargs):
 
     total_loss, should_stop = train_step(session, *args, **kwargs)
 
-    # if train_step_fn.step % 20 == 0:
-    #     acc_ = session.run(train_step_fn.acc)
-    #     # acc_vall_ = []
-    #     # for ind in range(10000 // FLAGS.batch_size + 1):
-    #     #     acc_vall_.append(session.run(train_step_fn.acc_val))
-    #
-    #     print('>> Step %s - Loss: %.2f  acc: %.2f%%' % (
-    #         str(train_step_fn.step).rjust(6, '0'), total_loss,
-    #         # np.mean(acc_vall_) * 100,
-    #         acc_ * 100))
-    #
-    # train_step_fn.step += 1
+    if train_step_fn.step % 20 == 0:
+        acc_ = session.run(train_step_fn.acc)
+
+        print('>> Step %s - Loss: %.2f  acc: %.2f%%' % (
+            str(train_step_fn.step).rjust(6, '0'), total_loss,
+            np.mean(acc_) * 100))
+
+    train_step_fn.step += 1
     return [total_loss, should_stop]
 
 
-# train_step_fn.step = 0
-# train_step_fn.acc_val = acc_val
-# train_step_fn.acc = acc
-
-
-def main(args):
+def main():
     tf.logging.set_verbosity(tf.logging.DEBUG)
 
     with tf.get_default_graph().as_default():
@@ -94,8 +90,6 @@ def main(args):
             batch_queue = load_batch(
                 dataset,
                 FLAGS.batch_size,
-                height=224,
-                width=224,
                 is_training=True)
 
         summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
@@ -105,23 +99,27 @@ def main(args):
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, first_clone_scope)
 
-        end_points = clones[0].outputs
+        end_points, [total_loss, loss_100, loss_reg, acc] = clones[0].outputs
         # todo can add summarys here
-
-        # todo moving avarage  for each noisy loss
+        summaries = summaries.union(
+            {tf.summary.scalar('loss/ttl/train', total_loss),
+             tf.summary.scalar('loss/100/train', loss_100),
+             tf.summary.scalar('loss/reg/train', loss_reg),
+             tf.summary.scalar('acc/train', acc)
+             })
 
         with tf.device(deploy_config.optimizer_device()):
             global_step = slim.get_or_create_global_step()
             learning_rate = tf.train.exponential_decay(
                 0.001, global_step,
                 100000, 0.1, staircase=True)
-            slim.summary.scalar('lr', learning_rate)
-
+            summaries.add(
+                slim.summary.scalar('lr', learning_rate)
+            )
             optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9)
 
         total_loss, clone_gradients = model_deploy.optimize_clones(
             clones, optimizer,
-            # var_list=slim.get_trainable_variables('resnet_v2_101/block4/.*') + slim.get_trainable_variables('.*logits.*'),
         )
 
         grad_updates = optimizer.apply_gradients(clone_gradients, global_step=global_step)
@@ -134,6 +132,9 @@ def main(args):
 
         summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
+        train_step_fn.step = 0
+        train_step_fn.acc = acc
+
         _sess_config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
         _sess_config.gpu_options.allow_growth = True
         slim.learning.train(
@@ -144,8 +145,8 @@ def main(args):
             train_step_fn=train_step_fn,
             summary_op=summary_op,
             number_of_steps=FLAGS.nsteps,
-            save_interval_secs=300,
-            save_summaries_secs=300,
+            save_interval_secs=FLAGS.interval,
+            save_summaries_secs=FLAGS.interval,
             log_every_n_steps=20,
             # trace_every_n_steps=20,
         )
@@ -154,4 +155,10 @@ def main(args):
 if __name__ == '__main__':
     utils.rm(FLAGS.log_dir)
     utils.init_dev(utils.get_dev(n=FLAGS.num_clones))
-    tf.app.run()
+    import multiprocessing as mp, imagenet_eval, time
+
+    mp.Process(target=main).start()
+    time.sleep(FLAGS.interval//2)
+
+    proc = mp.Process(target=imagenet_eval.main, args=())
+    proc.start()

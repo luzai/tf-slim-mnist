@@ -50,7 +50,7 @@ def main():
     labels_coarse = tf.to_int64(labels // 5)
     one_hot_labels_coarse = slim.one_hot_encoding(labels_coarse, 20)
 
-    predictions_reshape = tf.reshape(tf.nn.softmax(predictions), (-1, 20, 5))
+    predictions_reshape = tf.reshape(tf.nn.softmax(predictions + tf.constant(1e-6, tf.float32)), (-1, 20, 5))
     loss_20 = tf.losses.log_loss(
         predictions=tf.reduce_sum(predictions_reshape, axis=-1),
         labels=one_hot_labels_coarse, weights=FLAGS.beta
@@ -85,11 +85,11 @@ def main():
     # ema = tf.train.ExponentialMovingAverage(decay=0.9)
     # total_loss_avg_op = ema.apply([total_loss])
     # total_loss_avg = ema.average(total_loss)
-    slim.summary.scalar('loss/total/train', total_loss)
+    slim.summary.scalar('loss/ttl/train', total_loss)
     # slim.summary.scalar('loss/total_avg', total_loss_avg)
-    slim.summary.scalar('loss/loss100/train', loss_100)
+    slim.summary.scalar('loss/100/train', loss_100)
     slim.summary.scalar('loss/reg/train', loss_reg)
-    slim.summary.scalar('loss/loss20/train', loss_20)
+    slim.summary.scalar('loss/20/train', loss_20)
     slim.summary.scalar('loss/group/total/train', loss_group)
 
     global_step = slim.get_or_create_global_step()
@@ -103,11 +103,6 @@ def main():
     train_op = slim.learning.create_train_op(
         total_loss,
         optimizer,
-        # summarize_gradients=True,
-        # variables_to_train=slim.get_variables('resnet_v2_101/block4/.*/weights') + slim.get_variables(
-        #     'resnet_v2_101/logits/*') + slim.get_variables('resnet_v2_101/block4/.*/beta') + slim.get_variables(
-        #     'resnet_v2_101/block4/.*/gamma'),
-        # slim.get_variables('resnet_v2_101/logits'),
     )
     # with tf.control_dependencies([total_loss]):
     #     train_op = tf.group(train_op, total_loss_avg_op)
@@ -152,24 +147,25 @@ def main():
         train_op,
         FLAGS.log_dir,
         init_fn=InitAssignFn,
-        save_summaries_secs=50,
-        save_interval_secs=50,
+        save_summaries_secs=FLAGS.interval,
+        save_interval_secs=FLAGS.interval,
         session_config=_sess_config,
         number_of_steps=None,
         log_every_n_steps=196,
         train_step_fn=train_step_fn,
-        trace_every_n_steps=50,
+        # trace_every_n_steps=50,
     )
 
 
 if __name__ == '__main__':
     utils.rm(FLAGS.log_dir)
     import multiprocessing as mp
-    import cifar100_eval
+    import cifar100_eval,time
 
     os.environ['LD_LIBRARY_PATH'] = '/usr/local/cuda/extras/CUPTI/lib64:' + os.environ['LD_LIBRARY_PATH']
     proc = mp.Process(target=cifar100_eval.main, args=())
     proc.start()
+    # time.sleep(FLAGS.interval//2)
+    mp.Process(target=main).start()
 
-    main()
 

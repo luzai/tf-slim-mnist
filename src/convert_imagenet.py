@@ -10,11 +10,11 @@ import numpy as np
 import tensorflow as tf
 import utils
 
-tf.app.flags.DEFINE_string('train_directory', utils.root_path+'/data/imagenet22k-raw',
+tf.app.flags.DEFINE_string('train_directory', utils.root_path+'/data/imagenet-raw',
                            'Training data directory')
-tf.app.flags.DEFINE_string('validation_directory', utils.root_path+'/data/imagenet22k-raw',
+tf.app.flags.DEFINE_string('validation_directory', utils.root_path+'/data/imagenet-raw',
                            'Validation data directory')
-tf.app.flags.DEFINE_string('output_directory', utils.root_path+'/data/imagenet10k-hhd',
+tf.app.flags.DEFINE_string('output_directory', utils.root_path+'/data/imagenet600',
                            'Output data directory')
 
 tf.app.flags.DEFINE_integer('train_shards', 1024,
@@ -34,7 +34,7 @@ tf.app.flags.DEFINE_integer('num_threads', 64,
 # each synset contained in the file to an integer (based on the alphabetical
 # ordering). See below for details.
 tf.app.flags.DEFINE_string('labels_file',
-                           utils.root_path+'/data/imagenet7k.txt',
+                           utils.root_path+'/data/imagenet600.txt',
                            'Labels file')
 
 # This file containing mapping from synset to human-readable label.
@@ -538,9 +538,9 @@ def main(unused_argv):
     # Build a map from synset to human-readable label.
     synset_to_human = _build_synset_lookup(FLAGS.imagenet_metadata_file)
     # Run it!
-    utils.rm(FLAGS.output_directory + '/train*', block=True)
-    _process_dataset('validation', FLAGS.validation_directory,
-                     FLAGS.validation_shards, synset_to_human)
+    # utils.rm(FLAGS.output_directory + '/train*', block=True)
+    # _process_dataset('validation', FLAGS.validation_directory,
+    #                  FLAGS.validation_shards, synset_to_human)
 
     utils.rm(FLAGS.output_directory + '/validation*', block=True)
     _process_dataset('train', FLAGS.train_directory, FLAGS.train_shards,
