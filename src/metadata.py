@@ -38,7 +38,7 @@ config = easydict.EasyDict()
 config.synset_url = u"http://www.image-net.org/download/synset"
 config.username = u"luzai"
 config.accesskey = u"a1b86dba55cbb6cc765268b6cf186284ed793a32"
-config.filepath = "/mnt/nfs1703/kchen/imagenet10k-raw"  # root_path + "/data/imagenet22k-raw"
+config.filepath = "/mnt/nfs1703/kchen/imagenet-raw"  # root_path + "/data/imagenet22k-raw"
 config.filepath_ssd = "/mnt/SSD/luzai/imagenet22k-raw"
 
 config.base_url = u"http://www.image-net.org/api/xml/"
@@ -198,4 +198,8 @@ def dir2tree():
     return tree_
 
 
-ori_tree = tag_tree(tree)
+tree = ori_tree = tag_tree(tree)
+
+# tree = ori_tree
+# tree2=slim_tree(tree,condition='imagenet1k')
+# pass

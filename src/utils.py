@@ -77,7 +77,7 @@ def get_dev(n=1, ok=(0, 1, 2, 3, 4, 5, 6, 7)):
         # GPUtil.showUtilization()
         return devs[0] if n == 1 else devs
     while len(devs) == 0:
-        devs = GPUtil.getAvailable(order='random', maxLoad=0.98, maxMemory=0.5, limit=n)
+        devs = GPUtil.getAvailable(order='random', maxLoad=0.98, maxMemory=0.98, limit=n)
         devs = _limit(devs, ok)
         if len(devs) >= 1:
             print('available {}'.format(devs))

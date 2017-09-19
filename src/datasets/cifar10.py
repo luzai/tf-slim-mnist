@@ -53,7 +53,7 @@ def load_batch(dataset, batch_size, height=32, width=32, is_training=False):
         image,
         height,
         width,
-        is_training)
+        is_training,label=label)
 
     images, labels = tf.train.batch(
         [image, label],

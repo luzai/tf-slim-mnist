@@ -25,7 +25,7 @@ def clone_fn(batch_queue):
         logits=predictions,
         onehot_labels=one_hot_labels)
 
-    loss_reg = tf.reduce_sum(tf.losses.get_regularization_losses())
+    loss_reg = tf.reduce_sum(tf.losses.get_regularization_losses()) + tf.constant(1e-7,tf.float32)
 
     tf.logging.info('loss are {}'.format(tf.losses.get_losses()))
 
@@ -111,8 +111,8 @@ def main():
         with tf.device(deploy_config.optimizer_device()):
             global_step = slim.get_or_create_global_step()
             learning_rate = tf.train.exponential_decay(
-                0.001, global_step,
-                100000, 0.1, staircase=True)
+                FLAGS.init_lr, global_step,
+                FLAGS.lr_decay_per_steps, FLAGS.lr_decay, staircase=True)
             summaries.add(
                 slim.summary.scalar('lr', learning_rate)
             )
@@ -146,7 +146,7 @@ def main():
             summary_op=summary_op,
             number_of_steps=FLAGS.nsteps,
             save_interval_secs=FLAGS.interval,
-            save_summaries_secs=FLAGS.interval,
+            save_summaries_secs=FLAGS.interval/10,
             log_every_n_steps=20,
             # trace_every_n_steps=20,
         )

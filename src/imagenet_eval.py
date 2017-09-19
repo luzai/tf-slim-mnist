@@ -47,7 +47,7 @@ def main():
         logits=predictions,
         onehot_labels=one_hot_labels)
 
-    loss_reg = tf.add_n(tf.losses.get_regularization_losses())
+    loss_reg = tf.add_n(tf.losses.get_regularization_losses())+tf.constant(1e-7,tf.float32)
 
     total_loss = tf.losses.get_total_loss()
 

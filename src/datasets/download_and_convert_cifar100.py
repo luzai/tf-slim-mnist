@@ -90,7 +90,7 @@ def _add_to_tfrecord(filename, tfrecord_writer, offset=0):
     utils.pickle(b2a_map, utils.root_path + '/data/cifar100/b2a_map.pkl')
     a2b_map = {a: b for b, a in b2a_map.items()}
 
-    labels = [b2a_map[lb] for lb in labels]
+    # labels = [b2a_map[lb] for lb in labels]
 
     with tf.Graph().as_default():
         image_placeholder = tf.placeholder(dtype=tf.uint8)
@@ -179,7 +179,7 @@ def run(args):
 
     # Finally, write the labels file:
     labels_to_class_names = dict(zip(range(len(fine_labels_human)), fine_labels_human))
-    # dataset_utils.write_label_file(labels_to_class_names, dataset_dir)
+    dataset_utils.write_label_file(labels_to_class_names, dataset_dir)
 
     labels_to_class_names = dict(zip(range(len(coarse_labels_human)), coarse_labels_human))
     # dataset_utils.write_label_file(labels_to_class_names, dataset_dir, filename='labels-coarse.txt')

@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow.contrib
 from datasets import cifar100
 from model import resnet101, resnet50
-from datasets.cifar100 import load_batch
+from datasets.cifar100 import load_batch, c2f_map
 
 import tensorflow.contrib.slim as slim
 from dynamics import svd
@@ -10,6 +10,21 @@ import utils, numpy as np
 
 utils.init_dev(utils.get_dev())
 from hypers import cifar100_eval as FLAGS
+
+f2c_map = {}
+for c, fs in c2f_map.items():
+    for f in fs:
+        f2c_map[f] = c
+f2c_arr = np.array(f2c_map.values())
+c2f_arr = np.array([list(v) for v in c2f_map.values()])
+
+
+def c2f(c):
+    return c2f_arr[c, :]
+
+
+def f2c(f):
+    return f2c_arr[f]
 
 
 def main():
@@ -35,50 +50,51 @@ def main():
     fc_in = tf.squeeze(end_points['resnet_v2_50/block4'], name='dynamic/fc_in')
     logits = tf.squeeze(end_points['resnet_v2_50/logits'], name='dynamic/logits')
 
-    # convert prediction values for each class into single class prediction
+    # get the cross-entropy loss
     one_hot_labels = slim.one_hot_encoding(
         labels,
         dataset.num_classes)
-    tf.losses.softmax_cross_entropy(
-        logits=predictions,
-        onehot_labels=one_hot_labels)
 
     loss_100 = tf.losses.softmax_cross_entropy(
         logits=predictions,
         onehot_labels=one_hot_labels)
 
-    # labels_coarse = map_label(labels)
-    labels_coarse = tf.to_int64(tf.floordiv(labels, 5))
-    one_hot_labels_coarse = slim.one_hot_encoding(labels_coarse, 20)
-    predictions += tf.constant(1e-6, tf.float32)
-    predictions_reshape = tf.reshape(tf.nn.softmax(predictions), (-1, 20, 5))
-    loss_20 = tf.losses.log_loss(
-        predictions=tf.reduce_sum(predictions_reshape, axis=-1),
-        labels=one_hot_labels_coarse, weights=FLAGS.beta
-        , loss_collection=None if not FLAGS.multi_loss else tf.GraphKeys.LOSSES
+    labels_coarse = tf.py_func(f2c, [labels], tf.int64)
+    # labels_coarse= tf.reshape(tf.concat(tf.constant(1,tf.int64), labels_coarse), [ 1,2])
+    labels_coarse = tf.reshape(labels_coarse, labels.shape)
+    labels_fine = tf.py_func(c2f, [labels_coarse], tf.int64)
+    labels_fine = tf.reshape(labels_fine, labels.shape.as_list() + [5, ])
+
+    one_hot_labels_coarse = tf.reduce_sum(
+        tf.reshape(slim.one_hot_encoding(
+            tf.reshape(labels_fine, (-1,)),
+            num_classes=dataset.num_classes),
+            labels.shape.as_list() + [5, -1]), axis=1
     )
 
-    loss_group_l = []
-    metric_map = {}
-    for ind in range(20):
-        predictions_ = tf.reshape(predictions, (-1, 20, 5))
-        bs = tf.shape(predictions_, out_type=tf.int64)[0]
-        sel = tf.stack([tf.range(bs, dtype=tf.int64), labels // 5], axis=1)
-        predictions_ = tf.gather_nd(predictions_, sel)
+    loss_20 = tf.losses.softmax_cross_entropy(
+        logits=predictions,
+        onehot_labels=one_hot_labels_coarse,
+        weights=FLAGS.beta,
+        loss_collection=None if not FLAGS.multi_loss else tf.GraphKeys.LOSSES
+    )
 
-        one_hot_labels_group = slim.one_hot_encoding(tf.mod(labels, 5), 5)
-        loss_group_ = tf.losses.softmax_cross_entropy(
-            logits=predictions_,
-            onehot_labels=one_hot_labels_group,
-            loss_collection=None,
-            weights=FLAGS.gamma)
-        if ind <= 5:
-            metric_map['loss/group/group{}/val'.format(ind)] = slim.metrics.streaming_mean(loss_group_)
-        loss_group_l.append(loss_group_)
+    bs = labels_fine.shape[0]
+    predictions_l = []
+    for ind in range(5):
+        sel = tf.stack([tf.range(bs, dtype=tf.int64), labels_fine[:, ind]], axis=1)
+        predictions_l.append(tf.gather_nd(predictions, sel))
+    predictions_group = tf.stack(predictions_l, axis=1)
 
-    loss_group = tf.add_n(loss_group_l)
-    if FLAGS.multi_loss:
-        tf.losses.add_loss(loss_group)
+    labels_group_one_hot = tf.equal(labels_fine, tf.expand_dims(labels, axis=-1))
+    labels_group_one_hot = tf.to_int64(labels_group_one_hot)
+
+    loss_group = tf.losses.softmax_cross_entropy(
+        logits=predictions_group,
+        onehot_labels=labels_group_one_hot,
+        weights=FLAGS.gamma,
+        loss_collection=None if not FLAGS.multi_loss else tf.GraphKeys.LOSSES
+    )
 
     print '>> loss', tf.losses.get_losses(), len(tf.losses.get_losses())
 
@@ -86,12 +102,12 @@ def main():
 
     total_loss = tf.losses.get_total_loss()
 
-    tf.summary.scalar('loss/20/',loss_20)
+    tf.summary.scalar('loss/20/ori', loss_20)
 
     # streaming metrics to evaluate
     predictions = tf.to_int64(tf.argmax(predictions, 1))
     metrics_to_values, metrics_to_updates = slim.metrics.aggregate_metric_map(
-        utils.dict_concat([{
+        {
             # 'mse/val': slim.metrics.streaming_mean_squared_error(predictions, labels),
             'acc/val': slim.metrics.streaming_accuracy(predictions, labels),
             'loss/ttl/val': slim.metrics.streaming_mean(total_loss),
@@ -99,7 +115,7 @@ def main():
             'loss/20/val': slim.metrics.streaming_mean(loss_20),
             'loss/reg/val': slim.metrics.streaming_mean(loss_reg),
             'loss/group/ttl/val': slim.metrics.streaming_mean(loss_group)
-        }, metric_map]))
+        })
 
     # write the metrics as summaries
     for metric_name, metric_value in metrics_to_values.iteritems():

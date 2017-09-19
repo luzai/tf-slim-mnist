@@ -22,7 +22,7 @@ cifar10_eval = edict(
 
 cifar100 = edict(data_dir='../data/cifar100',
                  batch_size=128,
-                 log_dir='../output/multiloss-denan',
+                 log_dir='../output/multiloss-dbg',
                  checkpoint_path='../models/resnet50/resnet_v2_50.ckpt',
                  multi_loss=False,
                  beta=1.,
@@ -44,10 +44,14 @@ cifar100_eval = edict(data_dir='../data/cifar100',
                       gamma=1.
                       )
 
-imagenet = edict()
+imagenet = edict(
+    init_lr=0.1,
+    lr_decay_per_steps=45000,  # 100000
+    lr_decay=0.1,
+    interval=1800, )
 imagenet.data_dir = utils.root_path + '/data/imagenet600'
 imagenet.nclasses = 669  # 7460 # 669
-imagenet.log_dir = '../output/imgnet600-2'
+imagenet.log_dir = '../output/imgnet600-3'
 imagenet.nimgs = 81589 * 9  # 5543684  # 81589*9
 
 imagenet.batch_size = 32
@@ -55,7 +59,6 @@ imagenet.num_clones = 2
 imagenet.checkpoint_path = utils.root_path + '/models/resnet101/resnet_v2_101.ckpt'
 
 imagenet.nsteps = None
-imagenet.interval = 1800
 # imagenet.log_dir = '../output/' + utils.randomword(10),
 # todo method?
 # imagenet.beta = 1.

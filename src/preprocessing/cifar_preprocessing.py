@@ -260,10 +260,35 @@ def inputs(eval_data, data_dir, batch_size):
                                            shuffle=False)
 
 
-def train_process(image, height, width):
+import utils
 
+
+def text2img(text, shape):
+    import matplotlib.pylab as plt
+
+    fig = plt.figure(figsize=shape)
+    plt.text(0.5, 0.5, text, horizontalalignment='center',
+             verticalalignment='center', fontsize=30)
+    name = '/tmp/' + utils.randomword(5) + '.png'
+    plt.savefig(name)
+    im = plt.imread(name)[:, :, :3]
+    tensor = tf.convert_to_tensor(im)
+    # tensor = tf.image.resize_bilinear(tf.expand_dims(tensor, 0))
+    return tf.expand_dims(tensor, 0)
+
+
+def train_process(image, height, width, label=None):
     tf.summary.image('input/raw', tf.expand_dims(image, 0))
-    sel = tf.random_uniform([], minval=1, maxval=1.3)
+    # if label is not None:
+    #     mapping_string = tf.constant(["emerson", "lake", "palmer"])
+    #
+    #     label = tf.contrib.lookup.index_to_string(
+    #         label, mapping=mapping_string, default_value="UNKNOWN")
+    #
+    #     tensor = text2img(label, shape=image.shape.as_list()[1:3])
+    #     tf.summary.image('sanity_check', tf.concat((tf.expand_dims(image, 0), tensor), axis=1) )
+
+    sel = tf.random_uniform([], minval=1., maxval=1.1)
     distorted_image = tf.image.resize_images(
         image, (tf.to_int32(height * sel), tf.to_int32(width * sel)))
     tf.summary.image('input/randomresize', tf.expand_dims(distorted_image, 0))
@@ -279,7 +304,7 @@ def train_process(image, height, width):
     distorted_image = tf.image.random_brightness(distorted_image,
                                                  max_delta=63)
     distorted_image = tf.image.random_contrast(distorted_image,
-                                               lower=0.2, upper=1.8)
+                                               lower=0.0, upper=1.8)
     tf.summary.image('input/distort', tf.expand_dims(distorted_image, 0))
     # Subtract off the mean and divide by the variance of the pixels.
     float_image = tf.image.per_image_standardization(distorted_image)
@@ -304,10 +329,10 @@ def preprocess_image(
         image,
         height,
         width,
-        is_training):
+        is_training, label=None):
     image = tf.to_float(image)
     if is_training:
-        image = train_process(image, height, width)
+        image = train_process(image, height, width, label)
     else:
         image = eval_process(image, height, width)
 
