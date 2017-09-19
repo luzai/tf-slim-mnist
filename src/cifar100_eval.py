@@ -102,7 +102,7 @@ def main():
 
     total_loss = tf.losses.get_total_loss()
 
-    tf.summary.scalar('loss/20/ori', loss_20)
+    tf.summary.scalar('loss/20/val/ori', loss_20)
 
     # streaming metrics to evaluate
     predictions = tf.to_int64(tf.argmax(predictions, 1))

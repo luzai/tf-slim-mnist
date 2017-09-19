@@ -45,7 +45,7 @@ cifar100_eval = edict(data_dir='../data/cifar100',
                       )
 
 imagenet = edict(
-    init_lr=0.1,
+    init_lr=0.01,
     lr_decay_per_steps=45000,  # 100000
     lr_decay=0.1,
     interval=1800, )
